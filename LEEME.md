@@ -9,6 +9,11 @@ Muestra los logos de tus patrocinadores, auspiciadores o marcas en OBS como una 
 ![Windows 64 bits](https://img.shields.io/badge/Windows-64%20bits-0078D4?style=for-the-badge)
 ![Licencia GPL-2.0](https://img.shields.io/badge/licencia-GPL--2.0-blue?style=for-the-badge)
 
+<p align="center">
+  <img src="docs/images/overlay-transitions.gif" width="640" alt="El overlay recorriendo cuatro logos con transiciones de fundido, deslizar, zoom y desenfoque">
+  <br><sub>Transiciones de fundido, deslizar, zoom y desenfoque entre logos</sub>
+</p>
+
 <table>
   <tr>
     <td align="center"><img src="docs/images/dock-overview-es.png" width="300" alt="Dock de Logo Sequencer: controles de reproducción, overlay en escenas y biblioteca de logos"></td>

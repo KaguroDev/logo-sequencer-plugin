@@ -9,6 +9,11 @@ Show your sponsor, partner or brand logos in OBS as an automatic sequence, with 
 ![Windows 64-bit](https://img.shields.io/badge/Windows-64--bit-0078D4?style=for-the-badge)
 ![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue?style=for-the-badge)
 
+<p align="center">
+  <img src="docs/images/overlay-transitions.gif" width="640" alt="The overlay cycling through four logos with fade, slide, zoom and blur transitions">
+  <br><sub>Fade, slide, zoom and blur transitions between logos</sub>
+</p>
+
 <table>
   <tr>
     <td align="center"><img src="docs/images/dock-overview-en.png" width="300" alt="Logo Sequencer dock: playback controls, overlay in scenes and logo library"></td>
