@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<!--
+  OVERLAY — Logo Sequencer (añadir en OBS como "Fuente de navegador")
+  ----------------------------------------------------------------------
+  FORMA RÁPIDA: en el Panel de Control (Control_logo.html) pulsa
+  "Vincular overlay en OBS": crea o ajusta esta fuente automáticamente.
+
+  FORMA MANUAL:
+  1. En OBS: Fuentes → + → Navegador.
+  2. NO marques "Archivo local". En URL pega la ruta como file:///, con parámetros
+     (cópiala desde el panel: Avanzado → URL del overlay → Incluir contraseña):
+       file:///C:/ruta/Overlay_logo.html?host=127.0.0.1&port=4455&password=TU_CLAVE&channel=default
+  3. Ancho/alto de la fuente: el tamaño de tu lienzo (p. ej. 1920 x 1080).
+  4. Parámetros disponibles:
+
+       Overlay_logo.html?host=127.0.0.1&port=4455&password=TU_CLAVE&channel=default
+
+     - host     IP del PC donde corre OBS (127.0.0.1 = este mismo PC)
+     - port     Puerto del servidor WebSocket de OBS (por defecto 4455)
+     - password Contraseña de OBS WebSocket (Herramientas → Ajustes del servidor WebSocket)
+     - channel  Nombre de canal; usa uno distinto por overlay si tienes varios
+     - scene    Escena de OBS de esta fuente: usa los logos y la posición/tamaño
+                configurados para esa escena en el panel (si no tiene, los por defecto)
+     - autoplay=1  Reproduce la última configuración guardada al cargar
+     - debug=1     Muestra una barra de estado en la esquina
+
+     Con "Archivo local" OBS no admite parámetros: edita el bloque
+     DEFAULT_CONNECTION en el <script> de este archivo.
+  5. El CSS personalizado de la fuente puede quedar vacío; el fondo ya es transparente.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Logo Sequencer — Overlay</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+    /* Escenario: caja de tamaño estándar (ancho x alto) donde se dibuja cada logo */
+    #stage {
+      position: absolute;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .layer {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      will-change: opacity, transform;
+    }
+    .layer img {
+      width: 100%; height: 100%;
+      display: block;
+      transform-origin: center center;
+    }
+    #debug {
+      position: fixed; left: 8px; bottom: 8px;
+      font: 12px/1.4 ui-monospace, Consolas, monospace;
+      color: #b6f7c1; background: rgba(0,0,0,.7);
+      padding: 4px 8px; border-radius: 4px;
+      display: none; white-space: pre;
+    }
+    body.debug #debug { display: block; }
+    body.debug #stage { outline: 1px dashed rgba(0,255,120,.6); }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="debug">overlay: iniciando…</div>
+
+  <!-- obs-websocket-js v5 desde CDN (necesita internet; para uso offline descarga
+       https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js
+       junto a este archivo y cambia el src por "obs-ws.global.js") -->
+  <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js"></script>
+  <script>
+/* ==========================================================================
+ * BUS DE COMUNICACIÓN — idéntico en Overlay_logo.html y Control_logo.html
+ * --------------------------------------------------------------------------
+ * Envía y recibe mensajes por DOS vías a la vez:
+ *
+ *   1) OBS WebSocket v5 (obs-websocket-js) → request "BroadcastCustomEvent".
+ *      OBS reenvía el mensaje a TODOS los clientes conectados como evento
+ *      "CustomEvent". Es la vía fiable entre un Custom Dock y un Browser
+ *      Source, porque en OBS cada uno corre en un contexto CEF distinto.
+ *
+ *   2) BroadcastChannel + evento 'storage' de localStorage (vía local).
+ *      Útil para probar en un navegador normal (dos pestañas del mismo
+ *      origen) sin OBS. Dentro de OBS es solo un respaldo.
+ *
+ * Cada mensaje lleva un id único: si llega por ambas vías se procesa una vez.
+ *
+ * CONFIGURACIÓN DE OBS WEBSOCKET (OBS 28+ ya lo trae integrado):
+ *   OBS → Herramientas → Ajustes del servidor WebSocket
+ *     - Activar servidor WebSocket ✔
+ *     - Puerto del servidor: 4455 (por defecto)
+ *     - Activar autenticación ✔ → "Mostrar información de conexión" para
+ *       ver/copiar la contraseña.
+ *   IP: 127.0.0.1 si el panel/overlay corren en el mismo PC que OBS.
+ *       Si es otro equipo de la LAN, usa la IP local del PC de OBS
+ *       (p. ej. 192.168.1.50) y permite el puerto 4455 en el firewall.
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const APP_ID = 'logoseq';          // identifica nuestros eventos dentro de OBS
+  const RECONNECT_MIN = 1000;        // 1 s
+  const RECONNECT_MAX = 15000;       // 15 s
+
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+  class LogoSeqBus {
+    /**
+     * @param {object} opts
+     * @param {'control'|'overlay'} opts.role
+     * @param {string}   [opts.channel='default'] permite varios overlays independientes
+     * @param {function} opts.onMessage  (msg) => void   — msg = {type, payload, from, role}
+     * @param {function} [opts.onState]  (state, info) => void — estado de la conexión OBS
+     * @param {function} [opts.onLog]    (texto, nivel) => void
+     */
+    constructor(opts) {
+      this.role = opts.role;
+      this.channel = opts.channel || 'default';
+      this.onMessage = opts.onMessage || (() => {});
+      this.onState = opts.onState || (() => {});
+      this.onLog = opts.onLog || (() => {});
+      this.id = uid();
+
+      this.obs = null;
+      this.obsState = 'disconnected';     // disconnected | connecting | connected | reconnecting | error
+      this.obsTarget = null;              // {host, port, password}
+      this.reconnectDelay = RECONNECT_MIN;
+      this.reconnectTimer = null;
+      this.manualClose = false;
+
+      this.seen = new Set();              // ids ya procesados (dedupe)
+      this.seenQueue = [];
+
+      this._initLocal();
+    }
+
+    /* ---------------- Vía local: BroadcastChannel + localStorage ---------------- */
+    _initLocal() {
+      const name = `${APP_ID}-${this.channel}`;
+      try {
+        this.bc = new BroadcastChannel(name);
+        this.bc.onmessage = (e) => this._receive(e.data);
+      } catch (e) { this.bc = null; }
+
+      this.storageKey = `${name}-msg`;
+      this._onStorage = (e) => {
+        if (e.key !== this.storageKey || !e.newValue) return;
+        try { this._receive(JSON.parse(e.newValue)); } catch (_) { /* ignorar */ }
+      };
+      global.addEventListener('storage', this._onStorage);
+    }
+
+    /** Cierra la vía local (al cambiar de canal). */
+    destroy() {
+      this.disconnectObs(true);
+      if (this.bc) this.bc.close();
+      global.removeEventListener('storage', this._onStorage);
+    }
+
+    /* ---------------- Vía OBS WebSocket v5 ---------------- */
+    /**
+     * Conecta a OBS. Si se pierde la conexión, reintenta con backoff
+     * exponencial (1 s → 2 s → 4 s … máx. 15 s) hasta llamar a disconnectObs().
+     */
+    connectObs({ host = '127.0.0.1', port = 4455, password = '' } = {}) {
+      if (typeof global.OBSWebSocket === 'undefined') {
+        this._setState('error', { message: 'No se cargó la librería obs-websocket-js (¿sin internet?)' });
+        return;
+      }
+      this.disconnectObs(true);
+      this.obsTarget = { host, port, password };
+      this.manualClose = false;
+      this.reconnectDelay = RECONNECT_MIN;
+      this._openObs();
+    }
+
+    async _openObs() {
+      clearTimeout(this.reconnectTimer);
+      const { host, port, password } = this.obsTarget;
+      const url = `ws://${host}:${port}`;
+
+      const obs = new global.OBSWebSocket();
+      this.obs = obs;
+
+      obs.on('CustomEvent', (data) => this._receive(data));
+      obs.on('ConnectionClosed', (err) => {
+        if (this.obs !== obs || this.obsState !== 'connected') return;  // solo conexiones ya establecidas
+        if (this.manualClose) return this._setState('disconnected');
+        this._setState('error', { message: `Conexión perdida (${(err && err.code) || '?'})` });
+        this._scheduleReconnect();
+      });
+
+      this._setState('connecting', { url });
+      try {
+        // EventSubscription.General incluye "CustomEvent"; no pedimos más categorías.
+        const info = await obs.connect(url, password || undefined, {
+          eventSubscriptions: global.OBSWebSocket.EventSubscription.General,
+        });
+        if (this.obs !== obs) return;
+        this.reconnectDelay = RECONNECT_MIN;
+        let version = {};
+        try { version = await obs.call('GetVersion'); } catch (_) {}
+        this._setState('connected', { url, rpcVersion: info.negotiatedRpcVersion, version });
+      } catch (err) {
+        if (this.obs !== obs) return;
+        // Código 4009 = autenticación fallida → reintentar despacio
+        const authFail = err && (err.code === 4009 || /auth/i.test(err.message || ''));
+        this._setState('error', {
+          message: authFail ? 'Contraseña incorrecta' : (err && err.message) || 'No se pudo conectar',
+          code: err && err.code,
+        });
+        if (!this.manualClose) this._scheduleReconnect(authFail ? RECONNECT_MAX : undefined);
+      }
+    }
+
+    _scheduleReconnect(forceDelay) {
+      clearTimeout(this.reconnectTimer);
+      const delay = forceDelay || this.reconnectDelay;
+      this.onLog(`Reintentando conexión a OBS en ${Math.round(delay / 1000)} s…`, 'warn');
+      this._setState('reconnecting', { inMs: delay });
+      this.reconnectTimer = setTimeout(() => this._openObs(), delay);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX);
+    }
+
+    disconnectObs(silent) {
+      this.manualClose = true;
+      clearTimeout(this.reconnectTimer);
+      if (this.obs) {
+        const o = this.obs;
+        this.obs = null;
+        try { o.disconnect(); } catch (_) {}
+      }
+      if (!silent) this._setState('disconnected');
+    }
+
+    get obsConnected() { return this.obsState === 'connected'; }
+
+    /** Llamada directa a cualquier request de OBS (p. ej. refrescar una fuente). */
+    async obsCall(request, data) {
+      if (!this.obsConnected) throw new Error('OBS no está conectado');
+      return this.obs.call(request, data);
+    }
+
+    _setState(state, info = {}) {
+      this.obsState = state;
+      this.onState(state, info);
+    }
+
+    /* ---------------- Envío / recepción ---------------- */
+    /** Envía {type, payload} por todas las vías disponibles. */
+    send(type, payload) {
+      const msg = {
+        app: APP_ID, channel: this.channel, id: uid(),
+        from: this.id, role: this.role, type, payload, ts: Date.now(),
+      };
+      this._markSeen(msg.id);
+
+      if (this.bc) { try { this.bc.postMessage(msg); } catch (_) {} }
+      try {
+        // 'storage' solo se dispara en OTRAS pestañas. Evitamos payloads enormes.
+        const raw = JSON.stringify(msg);
+        if (raw.length < 1000000) global.localStorage.setItem(this.storageKey, raw);
+      } catch (_) {}
+
+      if (this.obsConnected) {
+        this.obs.call('BroadcastCustomEvent', { eventData: msg })
+          .catch((e) => this.onLog(`Error al enviar a OBS: ${e.message}`, 'error'));
+      }
+      return msg;
+    }
+
+    _markSeen(id) {
+      this.seen.add(id);
+      this.seenQueue.push(id);
+      if (this.seenQueue.length > 300) this.seen.delete(this.seenQueue.shift());
+    }
+
+    _receive(msg) {
+      if (!msg || msg.app !== APP_ID || msg.channel !== this.channel) return;
+      if (msg.from === this.id || this.seen.has(msg.id)) return;  // propio o duplicado
+      this._markSeen(msg.id);
+      try { this.onMessage(msg); } catch (e) { console.error(e); }
+    }
+  }
+
+  global.LogoSeqBus = LogoSeqBus;
+})(window);
+
+/* ==========================================================================
+ * MOTOR DEL OVERLAY
+ * --------------------------------------------------------------------------
+ * El overlay es la "fuente de verdad" del tiempo: recibe la configuración y
+ * los comandos del Panel de Control, ejecuta la secuencia y devuelve su
+ * estado (fase actual, tiempo restante…) para que el panel lo muestre.
+ *
+ * Protocolo (mensajes {type, payload}):
+ *   Panel → Overlay : config | play | pause | toggle | next | prev | stop | goto{index} | hello
+ *   Overlay → Panel : hello | status | error
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------------
+   * CONEXIÓN A OBS WEBSOCKET
+   * Edita estos valores si cargas el overlay como "Archivo local" en OBS
+   * (en ese modo OBS no permite añadir ?parámetros a la ruta).
+   *   host     → 127.0.0.1 si OBS está en este mismo PC; si no, su IP de LAN
+   *   port     → Herramientas → Ajustes del servidor WebSocket → Puerto (4455)
+   *   password → misma ventana → "Mostrar información de conexión"
+   *   channel  → debe coincidir con el canal del Panel de Control
+   * Los parámetros de URL (?host=&port=&password=&channel=) tienen prioridad.
+   * ---------------------------------------------------------------------- */
+  const DEFAULT_CONNECTION = {
+    host: '127.0.0.1',
+    port: 4455,
+    password: '',          // ← pon aquí tu contraseña de OBS WebSocket
+    channel: 'default',
+  };
+
+  const params = new URLSearchParams(location.search);
+  const CONN = {
+    host: params.get('host') || DEFAULT_CONNECTION.host,
+    port: Number(params.get('port')) || DEFAULT_CONNECTION.port,
+    password: params.get('password') ?? DEFAULT_CONNECTION.password,
+    channel: params.get('channel') || DEFAULT_CONNECTION.channel,
+  };
+  const SCENE = params.get('scene') || '';
+  const AUTOPLAY = params.get('autoplay') === '1';
+  const DEBUG = params.get('debug') === '1';
+  const CACHE_KEY = `logoseq-overlay-config-${CONN.channel}`;
+  const EASING = 'cubic-bezier(.4, 0, .2, 1)';
+
+  const stage = document.getElementById('stage');
+  const debugEl = document.getElementById('debug');
+  if (DEBUG) document.body.classList.add('debug');
+
+  /* ---------------- Estado ---------------- */
+  let config = null;          // {stage, phases, endBehavior}
+  let index = -1;             // fase visible
+  let state = 'stopped';      // stopped | playing | paused | finished
+  let timer = null;
+  let phaseStartedAt = 0;
+  let remaining = 0;          // ms restantes de la fase actual
+  let currentLayer = null;
+  let showToken = 0;          // invalida cargas de imagen obsoletas
+  let failStreak = 0;         // evita bucles si todas las imágenes fallan
+  let obsState = 'disconnected';
+  let sourceActive = null;    // ¿se ve en programa? (lo informa obs-browser)
+
+  /* ---------------- Transiciones (Web Animations API) ---------------- */
+  const T = {
+    fade:          { in: [{ opacity: 0 }, { opacity: 1 }],
+                     out: [{ opacity: 1 }, { opacity: 0 }] },
+    'slide-left':  { in: [{ opacity: 0, transform: 'translateX(100%)' }, { opacity: 1, transform: 'translateX(0)' }],
+                     out: [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: 'translateX(-100%)' }] },
+    'slide-right': { in: [{ opacity: 0, transform: 'translateX(-100%)' }, { opacity: 1, transform: 'translateX(0)' }],
+                     out: [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: 'translateX(100%)' }] },
+    'slide-up':    { in: [{ opacity: 0, transform: 'translateY(100%)' }, { opacity: 1, transform: 'translateY(0)' }],
+                     out: [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-100%)' }] },
+    zoom:          { in: [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'scale(1)' }],
+                     out: [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.25)' }] },
+    blur:          { in: [{ opacity: 0, filter: 'blur(24px)' }, { opacity: 1, filter: 'blur(0)' }],
+                     out: [{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(24px)' }] },
+    cut:           { in: [{ opacity: 1 }, { opacity: 1 }],
+                     out: [{ opacity: 0 }, { opacity: 0 }] },
+  };
+
+  function animate(el, kind, dir, ms) {
+    const def = T[kind] || T.fade;
+    const duration = kind === 'cut' ? 0 : Math.max(0, ms | 0);
+    return el.animate(def[dir], { duration, easing: EASING, fill: 'forwards' }).finished.catch(() => {});
+  }
+
+  /* ---------------- Escenario (tamaño estándar, escala, anclaje) ---------------- */
+  const ANCHORS = {
+    'top-left': [0, 0], top: [0.5, 0], 'top-right': [1, 0],
+    left: [0, 0.5], center: [0.5, 0.5], right: [1, 0.5],
+    'bottom-left': [0, 1], bottom: [0.5, 1], 'bottom-right': [1, 1],
+  };
+
+  /** Tamaño/posición para esta fuente: la de su escena o la por defecto. */
+  function stageCfg() {
+    if (!config) return {};
+    return (SCENE && config.sceneStages && config.sceneStages[SCENE]) || config.stage || {};
+  }
+
+  function layoutStage() {
+    const s = stageCfg();
+    const w = Number(s.width) || 400;
+    const h = Number(s.height) || 200;
+    const [ax, ay] = ANCHORS[s.anchor] || ANCHORS.center;
+    stage.style.width = w + 'px';
+    stage.style.height = h + 'px';
+    stage.style.left = ((window.innerWidth - w) * ax + (Number(s.offsetX) || 0)) + 'px';
+    stage.style.top = ((window.innerHeight - h) * ay + (Number(s.offsetY) || 0)) + 'px';
+    if (currentLayer && config && config.phases[index]) styleImg(currentLayer.firstChild, config.phases[index]);
+  }
+  window.addEventListener('resize', layoutStage);
+
+  function styleImg(img, phase) {
+    const s = stageCfg();
+    const scale = (Number(s.scale) || 1) * (Number(phase.scale) || 1);
+    img.style.objectFit = s.fit || 'contain';      // contain | cover | fill
+    img.style.transform = `scale(${scale})`;
+  }
+
+  /* ---------------- Carga de imágenes ---------------- */
+  function loadImage(src, timeoutMs = 8000) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      const t = setTimeout(() => reject(new Error('tardó demasiado en cargar')), timeoutMs);
+      img.onload = () => { clearTimeout(t); resolve(img); };
+      img.onerror = () => { clearTimeout(t); reject(new Error('no se pudo cargar')); };
+      img.src = src;
+    });
+  }
+
+  /* ---------------- Reproducción ---------------- */
+  async function showPhase(i, { keepPaused = false } = {}) {
+    if (!config || !config.phases.length) return;
+    const phases = config.phases;
+    i = ((i % phases.length) + phases.length) % phases.length;
+    const phase = phases[i];
+    const token = ++showToken;
+    clearTimeout(timer);
+
+    let img;
+    try {
+      img = await loadImage(phase.src);
+    } catch (err) {
+      if (token !== showToken) return;
+      failStreak++;
+      report('error', { message: `Imagen "${phase.name || phase.src}" ${err.message}`, index: i });
+      if (failStreak >= phases.length) { failStreak = 0; return stop(); }
+      return showPhase(i + 1, { keepPaused });       // salta a la siguiente
+    }
+    if (token !== showToken) return;                  // llegó otro comando mientras cargaba
+    failStreak = 0;
+
+    const layer = document.createElement('div');
+    layer.className = 'layer';
+    styleImg(img, phase);
+    layer.appendChild(img);
+    stage.appendChild(layer);
+
+    const prev = currentLayer;
+    currentLayer = layer;
+    index = i;
+
+    // Crossfade: entra la nueva y sale la anterior a la vez
+    animate(layer, phase.transition, 'in', phase.transitionMs);
+    if (prev) animate(prev, phase.transition, 'out', phase.transitionMs).then(() => prev.remove());
+
+    // La duración cuenta desde que empieza a entrar el logo
+    remaining = Math.max(250, Number(phase.duration) || 3000);
+    if (state === 'playing' && !keepPaused) startTimer();
+    sendStatus();
+  }
+
+  function startTimer() {
+    clearTimeout(timer);
+    phaseStartedAt = performance.now();
+    timer = setTimeout(advance, remaining);
+  }
+
+  function advance() {
+    const next = index + 1;
+    if (next < config.phases.length) return showPhase(next);
+    switch (config.endBehavior) {
+      case 'hold': state = 'finished'; sendStatus(); break;   // mantener el último logo
+      case 'hide': stop(); break;                              // ocultar al terminar
+      default: showPhase(0);                                   // 'loop'
+    }
+  }
+
+  function play() {
+    if (!config || !config.phases.length) return report('error', { message: 'No hay fases configuradas' });
+    if (state === 'paused' && currentLayer) { state = 'playing'; startTimer(); return sendStatus(); }
+    if (state === 'playing') return;
+    const from = (state === 'finished' || index < 0) ? 0 : index;
+    state = 'playing';
+    showPhase(from);
+  }
+
+  function pause() {
+    if (state !== 'playing') return;
+    clearTimeout(timer);
+    remaining = Math.max(0, remaining - (performance.now() - phaseStartedAt));
+    state = 'paused';
+    sendStatus();
+  }
+
+  function goTo(i) {
+    if (!config || !config.phases.length) return;
+    if (state === 'stopped' || state === 'finished') state = 'paused';
+    showPhase(i);
+  }
+  const step = (delta) => goTo(index < 0 ? 0 : index + delta);
+
+  function stop() {
+    clearTimeout(timer);
+    showToken++;
+    const phase = config && config.phases[index];
+    if (currentLayer) {
+      const l = currentLayer;
+      animate(l, phase ? phase.transition : 'fade', 'out', phase ? phase.transitionMs : 500).then(() => l.remove());
+    }
+    currentLayer = null;
+    index = -1;
+    state = 'stopped';
+    sendStatus();
+  }
+
+  function applyConfig(rawConfig, autoplay) {
+    if (!rawConfig || !Array.isArray(rawConfig.phases)) return;
+    // Se guarda la config completa: la caché la comparten los overlays de todas las escenas
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(rawConfig)); } catch (_) { /* cuota llena: ignorar */ }
+    // Logos propios de esta escena, o los por defecto
+    const own = SCENE && rawConfig.scenePhases && rawConfig.scenePhases[SCENE];
+    const newConfig = { ...rawConfig, phases: Array.isArray(own) ? own : rawConfig.phases };
+    const wasPlaying = state === 'playing';
+    const prevId = config && config.phases[index] && config.phases[index].id;
+    config = newConfig;
+    if (prevId) {                                     // si la fase visible cambió de lugar, se sigue
+      const i = config.phases.findIndex((p) => p.id === prevId);
+      if (i >= 0) index = i;
+    }
+    layoutStage();
+
+    if (!config.phases.length) return stop();
+    if (index >= config.phases.length) { index = -1; if (wasPlaying) showPhase(0); }
+    if (autoplay && state !== 'playing') play();
+    sendStatus();
+  }
+
+  /* ---------------- Comunicación ---------------- */
+  function currentRemaining() {
+    return state === 'playing' ? Math.max(0, remaining - (performance.now() - phaseStartedAt)) : remaining;
+  }
+
+  function sendStatus() {
+    const phase = config && config.phases[index];
+    bus.send('status', {
+      state, index,
+      phaseId: phase ? phase.id : null,
+      scene: SCENE,
+      active: sourceActive,
+      total: config ? config.phases.length : 0,
+      name: phase ? phase.name : null,
+      durationMs: phase ? Number(phase.duration) : 0,
+      remainingMs: Math.round(currentRemaining()),
+    });
+    renderDebug();
+  }
+
+  function report(type, payload) {
+    console.warn('[overlay]', payload.message);
+    bus.send(type, payload);
+  }
+
+  function renderDebug() {
+    if (!DEBUG) return;
+    const phase = config && config.phases[index];
+    debugEl.textContent =
+      `OBS: ${obsState} · ${CONN.host}:${CONN.port} · canal: ${CONN.channel}` +
+      ` · escena: ${SCENE || '(por defecto)'}${SCENE && config && config.sceneStages && config.sceneStages[SCENE] ? ' [propia]' : ''}\n` +
+      `estado: ${state} · fase ${index + 1}/${config ? config.phases.length : 0}` +
+      (phase ? ` · ${phase.name}` : '');
+  }
+
+  const bus = new window.LogoSeqBus({
+    role: 'overlay',
+    channel: CONN.channel,
+    onMessage(msg) {
+      if (msg.role !== 'control') return;
+      switch (msg.type) {
+        case 'config': applyConfig(msg.payload.config, msg.payload.autoplay); break;
+        case 'play':   play(); break;
+        case 'pause':  pause(); break;
+        case 'toggle': state === 'playing' ? pause() : play(); break;
+        case 'next':   step(+1); break;
+        case 'prev':   step(-1); break;
+        case 'stop':   stop(); break;
+        case 'goto': {
+          // Con phaseId solo salta el overlay que tiene esa fase (cada escena puede tener otros logos)
+          const pl = msg.payload || {};
+          if (pl.phaseId) {
+            const i = config ? config.phases.findIndex((p) => p.id === pl.phaseId) : -1;
+            if (i >= 0) goTo(i);
+          } else goTo(Number(pl.index) || 0);
+          break;
+        }
+        case 'hello':  sendStatus(); break;           // el panel acaba de abrirse
+      }
+    },
+    onState(s, info) {
+      obsState = s;
+      if (s === 'connected') bus.send('hello', {});   // pide la config al panel
+      if (s === 'error') console.warn('[overlay] OBS:', info.message);
+      renderDebug();
+    },
+  });
+
+  /* ---------------- Comandos directos desde OBS (sin WebSocket) ----------------
+   * El script Logo_sequencer.lua (atajos de teclado) llama al procedimiento
+   * "javascript_event" de la fuente de navegador, que dispara este evento.
+   * También sirve para cualquier herramienta que use obs-browser "emit_event". */
+  window.addEventListener('logoseq', (e) => {
+    let d = e.detail;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { return; } }
+    if (!d || (d.channel && d.channel !== CONN.channel)) return;
+    switch (d.type) {
+      case 'play':   play(); break;
+      case 'pause':  pause(); break;
+      case 'toggle': state === 'playing' ? pause() : play(); break;
+      case 'next':   step(+1); break;
+      case 'prev':   step(-1); break;
+      case 'stop':   stop(); break;
+    }
+  });
+
+  /* obs-browser avisa cuando la fuente entra o sale del programa: el panel
+   * muestra el estado del overlay que está en vivo. */
+  window.addEventListener('obsSourceActiveChanged', (e) => {
+    sourceActive = !!(e.detail && e.detail.active);
+    sendStatus();
+  });
+
+  /* ---------------- Arranque ---------------- */
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (cached) applyConfig(cached, AUTOPLAY);       // última config conocida
+  } catch (_) {}
+  layoutStage();
+  bus.connectObs({ host: CONN.host, port: CONN.port, password: CONN.password });
+  bus.send('hello', {});                              // vía local (pruebas en navegador)
+  renderDebug();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<!--
+  PANEL DE CONTROL — Logo Sequencer (Custom Browser Dock de OBS)
+  ----------------------------------------------------------------------
+  Añadirlo como dock:
+    OBS → Docks → Docks de navegador personalizados…
+      Nombre: Logo Sequencer
+      URL:    file:///C:/ruta/a/logo-sequencer/Control_logo.html
+              (o http://127.0.0.1:8080/Control_logo.html si lo sirves con un servidor local)
+
+  La IP, el puerto y la contraseña de OBS WebSocket se configuran desde la
+  propia interfaz (sección "Conexión OBS") y se guardan en este dock.
+  Valores por defecto: 127.0.0.1 : 4455. La contraseña está en
+  OBS → Herramientas → Ajustes del servidor WebSocket → Mostrar información de conexión.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Logo Sequencer — Control</title>
+  <style>
+/* UI oscura, compacta y responsive para Custom Browser Dock (desde ~260 px de ancho) */
+:root {
+  --bg: #0f1115; --bg-2: #161922; --bg-3: #1d212c; --line: #2a2f3c;
+  --text: #e6e8ee; --muted: #8b92a5; --accent: #6c8cff; --accent-2: #4a6bea;
+  --ok: #3ecf8e; --warn: #f5b84a; --err: #ff5d6c;
+  --radius: 8px; --gap: 10px;
+  --font: 13px/1.4 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: var(--font); }
+body { min-width: 260px; padding-bottom: 64px; }
+button, input, select { font: inherit; color: inherit; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2c3242; border-radius: 4px; }
+
+/* Cabecera */
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.app-header h1 { font-size: 14px; margin: 0; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--bg-3); font-size: 11px; color: var(--muted); white-space: nowrap; border: 1px solid var(--line); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.pill[data-state="connected"] .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.pill[data-state="connecting"] .dot, .pill[data-state="reconnecting"] .dot { background: var(--warn); animation: blink 1s infinite; }
+.pill[data-state="error"] .dot { background: var(--err); }
+@keyframes blink { 50% { opacity: .3; } }
+
+/* Transporte fijo arriba */
+.transport { position: sticky; top: 0; z-index: 10; background: var(--bg-2); border-bottom: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 8px; }
+.now { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.now-thumb { width: 56px; height: 36px; border-radius: 6px; flex: none; background: var(--bg-3) center/contain no-repeat; border: 1px solid var(--line); }
+.now-text { min-width: 0; flex: 1; }
+.now-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-sub { color: var(--muted); font-size: 11px; }
+.progress { height: 4px; background: var(--bg-3); border-radius: 2px; overflow: hidden; }
+.progress > i { display: block; height: 100%; width: 0; background: var(--accent); }
+.controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.controls .btn { padding: 8px 4px; flex-direction: column; gap: 2px; font-size: 11px; }
+.controls .btn svg { width: 18px; height: 18px; }
+
+/* Secciones plegables */
+main { padding: 10px 12px; display: grid; gap: var(--gap); }
+details.card { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); }
+details.card > summary { list-style: none; cursor: pointer; user-select: none; padding: 10px 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: ""; width: 6px; height: 6px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; margin-right: 2px; }
+details.card[open] > summary::before { transform: rotate(45deg); }
+details.card > summary .count { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 11px; }
+.card-body { padding: 0 12px 12px; display: grid; gap: var(--gap); }
+
+/* Formularios */
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1 1 90px; min-width: 0; }
+.row > .grow { flex: 3 1 160px; }
+.row > .shrink { flex: 0 0 auto; }
+.row > .btn { flex: 1 1 auto; min-width: auto; }   /* los botones no se encogen por debajo de su texto: pasan a otra línea */
+.field { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+input[type=text], input[type=number], input[type=password], select { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; outline: none; min-width: 0; }
+input:focus, select:focus { border-color: var(--accent); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); cursor: pointer; }
+.hint { color: var(--muted); font-size: 11px; margin: 0; }
+.hint code { background: var(--bg-3); padding: 1px 4px; border-radius: 4px; }
+
+/* Botones */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s; }
+.btn:hover { background: #262b38; border-color: #3a4152; }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent-2); border-color: var(--accent); }
+.btn.primary:hover { background: var(--accent); }
+.btn.danger:hover { background: #3a1f25; border-color: var(--err); color: #ffb3bb; }
+.btn.ghost { background: transparent; border-color: transparent; padding: 4px 6px; color: var(--muted); }
+.btn.ghost:hover { color: var(--text); background: var(--bg-2); }
+.btn.active { border-color: var(--accent); color: #c9d4ff; box-shadow: 0 0 0 1px var(--accent) inset; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; flex: none; }
+
+/* Biblioteca */
+.logo-list, .phase-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.logo-item { display: grid; grid-template-columns: 48px 1fr auto; gap: 8px; align-items: center; background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+.thumb { width: 48px; height: 32px; border-radius: 4px; border: 1px solid var(--line); position: relative; overflow: hidden;
+  background: linear-gradient(45deg,#151820 25%,transparent 25%,transparent 75%,#151820 75%), linear-gradient(45deg,#151820 25%,transparent 25%,transparent 75%,#151820 75%), #0b0d11;
+  background-size: 10px 10px; background-position: 0 0, 5px 5px; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.thumb.broken::after { content: "!"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--err); font-weight: 700; }
+.logo-meta { min-width: 0; display: grid; gap: 3px; }
+.logo-meta input { padding: 3px 6px; font-size: 12px; }
+.logo-meta input.src { color: var(--muted); font-size: 11px; }
+.item-actions { display: flex; gap: 2px; }
+.empty { color: var(--muted); font-size: 12px; text-align: center; padding: 12px; border: 1px dashed var(--line); border-radius: 6px; }
+.dropzone.drag { outline: 1px dashed var(--accent); outline-offset: 4px; }
+
+/* Fases */
+.phase { background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 6px; display: grid; gap: 6px; transition: border-color .15s, background .15s; }
+.phase.current { border-color: var(--accent); background: #1e2436; box-shadow: inset 3px 0 0 var(--accent); }
+.phase.disabled { opacity: .5; }
+.phase.dragging { opacity: .35; }
+.phase.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.phase.drop-after { box-shadow: 0 2px 0 var(--accent); }
+.phase-top { display: grid; grid-template-columns: auto auto 48px 1fr auto; gap: 6px; align-items: center; }
+.handle { cursor: grab; color: var(--muted); padding: 0 2px; user-select: none; font-size: 14px; line-height: 1; }
+.num { color: var(--muted); font-size: 11px; min-width: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+.phase-bottom { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 6px; align-items: end; }
+.phase-bottom .field { font-size: 10px; }
+.phase-bottom input, .phase-bottom select { padding: 4px 6px; font-size: 12px; }
+.summary-line { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
+
+/* Anclaje 3x3 y presets */
+.anchor-grid { display: grid; grid-template-columns: repeat(3, 26px); gap: 3px; }
+.anchor-grid button { width: 26px; height: 20px; border-radius: 3px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; padding: 0; }
+.anchor-grid button.active { background: var(--accent); border-color: var(--accent); }
+.preset-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.preset-row .btn { padding: 3px 8px; font-size: 11px; }
+
+/* Overlay en escenas */
+.scene-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.scene-item { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.scene-item.editing { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.scene-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scene-sub { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scene-sub .tag { display: inline-block; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); margin-right: 4px; }
+.scene-sub .tag.own { border-color: var(--accent); color: #c9d4ff; }
+.scene-sub .warn { color: var(--warn); }
+.stage-target { background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: grid; gap: 6px; }
+fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: var(--gap); min-width: 0; }
+
+/* Log, pie y toasts */
+.log { max-height: 110px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: 11px/1.45 ui-monospace, Consolas, monospace; color: var(--muted); }
+.log .warn { color: var(--warn); } .log .error { color: var(--err); } .log .ok { color: var(--ok); }
+.footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--bg-2); border-top: 1px solid var(--line); padding: 8px 12px; }
+#toasts { position: fixed; right: 10px; bottom: 60px; display: grid; gap: 6px; z-index: 50; max-width: calc(100% - 20px); }
+.toast { background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 6px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.4); animation: toastIn .2s ease-out; }
+.toast.error { border-left-color: var(--err); } .toast.ok { border-left-color: var(--ok); } .toast.warn { border-left-color: var(--warn); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(6px); } }
+
+@media (max-width: 340px) {
+  .controls .btn span { display: none; }
+  .phase-top { grid-template-columns: auto 48px 1fr auto; }
+  .phase-top .num { display: none; }
+}
+  </style>
+</head>
+<body>
+  <!-- Iconos SVG reutilizables -->
+  <svg width="0" height="0" style="position:absolute">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 5.5v13a1 1 0 0 0 1.55.83L15 13.7V18a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v4.3L6.55 4.67A1 1 0 0 0 5 5.5z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M19 5.5v13a1 1 0 0 1-1.55.83L9 13.7V18a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v4.3l8.45-5.63A1 1 0 0 1 19 5.5z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h11v13H8zM5 3h11v3H7v11H5z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 6l7 8H5z"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 18l-7-8h14z"/></symbol>
+  </svg>
+
+  <header class="app-header">
+    <h1>Logo Sequencer</h1>
+    <span class="pill" id="connPill" data-state="disconnected"><span class="dot"></span><span id="connText">Sin conexión</span></span>
+  </header>
+
+  <!-- ===================== TRANSPORTE ===================== -->
+  <section class="transport" aria-label="Reproducción">
+    <div class="now">
+      <div class="now-thumb" id="nowThumb"></div>
+      <div class="now-text">
+        <div class="now-title" id="nowTitle">Detenido</div>
+        <div class="now-sub" id="nowSub">Overlay sin respuesta todavía</div>
+      </div>
+    </div>
+    <div class="progress"><i id="progressBar"></i></div>
+    <div class="controls">
+      <button class="btn" data-cmd="prev" title="Logo anterior"><svg><use href="#i-prev"/></svg><span>Anterior</span></button>
+      <button class="btn primary" data-cmd="play" title="Iniciar secuencia"><svg><use href="#i-play"/></svg><span>Iniciar</span></button>
+      <button class="btn" data-cmd="pause" title="Pausar"><svg><use href="#i-pause"/></svg><span>Pausar</span></button>
+      <button class="btn" data-cmd="next" title="Siguiente logo"><svg><use href="#i-next"/></svg><span>Siguiente</span></button>
+      <button class="btn danger" data-cmd="stop" title="Detener"><svg><use href="#i-stop"/></svg><span>Detener</span></button>
+    </div>
+  </section>
+
+  <main>
+    <!-- ===================== OVERLAY EN ESCENAS ===================== -->
+    <details class="card" id="cardScenes" open>
+      <summary>Overlay en escenas <span class="count" id="scenesCount"></span></summary>
+      <div class="card-body">
+        <div class="row">
+          <button type="button" class="btn primary" id="btnLinkOverlay">Vincular overlay en OBS</button>
+          <button type="button" class="btn shrink" id="btnRefreshScenes" title="Volver a leer las escenas de OBS">↻ Actualizar</button>
+        </div>
+        <div class="row">
+          <label class="field grow">Escena
+            <select id="addScene"><option value="">(conecta a OBS)</option></select></label>
+          <button type="button" class="btn shrink" id="btnAddToScene"><svg><use href="#i-plus"/></svg>Agregar overlay</button>
+        </div>
+        <ul class="scene-list" id="sceneList"></ul>
+        <p class="hint"><b>Vincular overlay</b> actualiza todas las fuentes de navegador que usan <code>Overlay_logo.html</code> (modo URL con IP, puerto, contraseña, canal y escena). Si no hay ninguna, la crea en la escena actual.</p>
+        <p class="hint"><b>Agregar overlay</b> crea una fuente propia en la escena elegida. Cada escena puede tener sus propios logos (<b>Secuencia de fases</b>) y su propia posición y tamaño (<b>Tamaño y escala</b>); <b>Configurar</b> elige la escena en ambas. Los controles Iniciar, Pausar, etc. afectan a todas a la vez.</p>
+      </div>
+    </details>
+
+    <!-- ===================== CONEXIÓN ===================== -->
+    <details class="card" id="cardConn">
+      <summary>Conexión OBS <span class="count" id="obsVersion"></span></summary>
+      <form class="card-body" id="connForm" autocomplete="off">
+        <div class="row">
+          <!-- IP del PC con OBS. 127.0.0.1 si es el mismo equipo -->
+          <label class="field grow">Host / IP<input type="text" id="cHost" placeholder="127.0.0.1"></label>
+          <!-- Puerto de Herramientas → Ajustes del servidor WebSocket (4455 por defecto) -->
+          <label class="field">Puerto<input type="number" id="cPort" min="1" max="65535" placeholder="4455"></label>
+        </div>
+        <div class="row">
+          <!-- Contraseña: "Mostrar información de conexión" en la misma ventana de OBS -->
+          <label class="field grow">Contraseña<input type="password" id="cPass" placeholder="(vacía si no hay autenticación)"></label>
+          <label class="field">Canal<input type="text" id="cChannel" placeholder="default"></label>
+        </div>
+        <div class="row">
+          <label class="check shrink"><input type="checkbox" id="cShowPass"> Mostrar</label>
+          <label class="check shrink"><input type="checkbox" id="cAuto"> Conectar al abrir</label>
+        </div>
+        <div class="row">
+          <button type="submit" class="btn primary" id="btnConnect">Conectar</button>
+          <button type="button" class="btn" id="btnDisconnect">Desconectar</button>
+        </div>
+        <p class="hint">El <b>canal</b> debe coincidir con el <code>?channel=</code> del overlay. Úsalo para controlar varios overlays por separado.</p>
+        <div class="log" id="log"></div>
+      </form>
+    </details>
+
+    <!-- ===================== BIBLIOTECA ===================== -->
+    <details class="card" id="cardLib" open>
+      <summary>Biblioteca de logos <span class="count" id="libCount"></span></summary>
+      <div class="card-body">
+        <div class="row">
+          <label class="field">Nombre<input type="text" id="newName" placeholder="Patrocinador A"></label>
+          <label class="field grow">URL o ruta local<input type="text" id="newSrc" placeholder="https://… o C:\logos\logo.png"></label>
+        </div>
+        <div class="row">
+          <button class="btn primary" id="btnAddLogo"><svg><use href="#i-plus"/></svg>Añadir</button>
+          <button class="btn" id="btnPickFile">Desde archivo…</button>
+          <input type="file" id="filePicker" accept="image/*" multiple hidden>
+        </div>
+        <p class="hint">Rutas como <code>C:\logos\a.png</code> se convierten a <code>file:///C:/logos/a.png</code>. Para que el overlay pueda leerlas, la fuente debe usar una URL <code>file:///</code> (lo deja así "Vincular overlay en OBS"). "Desde archivo" incrusta la imagen (data URL): cómodo, pero úsalo con imágenes livianas.</p>
+        <ul class="logo-list dropzone" id="logoList"></ul>
+      </div>
+    </details>
+
+    <!-- ===================== SECUENCIA ===================== -->
+    <details class="card" id="cardSeq" open>
+      <summary>Secuencia de fases <span class="count" id="seqCount"></span></summary>
+      <div class="card-body">
+        <div class="stage-target">
+          <div class="row">
+            <label class="field grow">Logos para
+              <select id="seqScene"></select></label>
+          </div>
+          <div class="row" id="seqOwnRow">
+            <label class="check shrink" title="Marcado: esta escena muestra la secuencia por defecto"><input type="checkbox" id="seqDefault"> Usar los mismos logos que por defecto</label>
+          </div>
+          <p class="hint" id="seqHint"></p>
+        </div>
+        <div class="row">
+          <label class="field">Duración por defecto
+            <input type="number" id="defDuration" min="0.25" step="0.25"></label>
+          <label class="field">Unidad
+            <select id="durUnit"><option value="s">segundos</option><option value="ms">milisegundos</option></select></label>
+        </div>
+        <div class="row">
+          <label class="field">Transición
+            <select id="defTransition"></select></label>
+          <label class="field">Duración transición (ms)
+            <input type="number" id="defTransMs" min="0" step="50"></label>
+        </div>
+        <div class="row">
+          <label class="field">Al terminar
+            <select id="endBehavior">
+              <option value="loop">Repetir en bucle</option>
+              <option value="hold">Mantener último logo</option>
+              <option value="hide">Ocultar</option>
+            </select></label>
+        </div>
+        <fieldset class="stage-fields" id="seqFields">
+        <div class="row">
+          <button class="btn" id="btnAddAll"><svg><use href="#i-plus"/></svg>Añadir todos los logos</button>
+          <button class="btn" id="btnApplyDefaults">Aplicar valores por defecto a todas</button>
+          <button class="btn danger" id="btnClearSeq"><svg><use href="#i-trash"/></svg>Vaciar</button>
+        </div>
+        <ol class="phase-list" id="phaseList"></ol>
+        <div class="summary-line"><span id="seqSummary"></span><span>Arrastra ⠿ para reordenar</span></div>
+        </fieldset>
+      </div>
+    </details>
+
+    <!-- ===================== ESCENARIO ===================== -->
+    <details class="card" id="cardStage" open>
+      <summary>Tamaño y escala <span class="count" id="stageCount"></span></summary>
+      <div class="card-body">
+        <div class="stage-target">
+          <div class="row">
+            <label class="field grow">Configurar para
+              <select id="stageScene"></select></label>
+            <button type="button" class="btn shrink" id="btnShowScene" title="Cambia a esta escena en OBS (en Modo Estudio, en la vista previa) para ver los cambios">Ver en OBS</button>
+          </div>
+          <div class="row" id="stageOwnRow">
+            <label class="check shrink" title="Si está desmarcado, esta escena usa la configuración por defecto"><input type="checkbox" id="stageOwn"> Posición y tamaño propios en esta escena</label>
+          </div>
+          <p class="hint" id="stageHint"></p>
+        </div>
+        <fieldset class="stage-fields" id="stageFields">
+        <div class="row">
+          <label class="field">Ancho (px)<input type="number" id="sW" min="1" step="1"></label>
+          <label class="field">Alto (px)<input type="number" id="sH" min="1" step="1"></label>
+          <label class="field">Ajuste
+            <select id="sFit">
+              <option value="contain">Contener (sin recorte)</option>
+              <option value="cover">Cubrir (recorta)</option>
+              <option value="fill">Estirar</option>
+            </select></label>
+        </div>
+        <div class="preset-row" id="presets"></div>
+        <div class="row">
+          <label class="field grow">Escala global: <b id="sScaleLabel">100%</b>
+            <input type="range" id="sScale" min="0.1" max="3" step="0.05"></label>
+        </div>
+        <div class="row">
+          <!-- div (no label): un <label> reenvía los clics al primer botón de la cuadrícula -->
+          <div class="field shrink">Posición en el lienzo
+            <div class="anchor-grid" id="anchorGrid"></div></div>
+          <label class="field">Desplaz. X (px)<input type="number" id="sOX" step="1"></label>
+          <label class="field">Desplaz. Y (px)<input type="number" id="sOY" step="1"></label>
+        </div>
+        </fieldset>
+      </div>
+    </details>
+
+    <!-- ===================== AVANZADO ===================== -->
+    <details class="card" id="cardAdv">
+      <summary>Avanzado</summary>
+      <div class="card-body">
+        <label class="field">URL del overlay (para la Fuente de navegador)
+          <input type="text" id="overlayUrl" readonly></label>
+        <div class="row">
+          <label class="check shrink"><input type="checkbox" id="urlIncludePass"> Incluir contraseña</label>
+          <label class="check shrink"><input type="checkbox" id="urlDebug"> Modo debug</label>
+          <button class="btn shrink" id="btnCopyUrl"><svg><use href="#i-copy"/></svg>Copiar</button>
+        </div>
+        <div class="row">
+          <label class="field grow">Nombre de la fuente del overlay en OBS
+            <input type="text" id="sourceName" placeholder="Logo Overlay"></label>
+          <button class="btn shrink" id="btnRefreshSource">Refrescar fuente</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnExport">Exportar JSON</button>
+          <button class="btn" id="btnImport">Importar JSON</button>
+          <input type="file" id="importPicker" accept="application/json,.json" hidden>
+          <button class="btn danger" id="btnReset">Restablecer</button>
+        </div>
+      </div>
+    </details>
+  </main>
+
+  <footer class="footer">
+    <label class="check"><input type="checkbox" id="autoSync"> Sincronizar al editar</label>
+    <button class="btn primary" id="btnSend">Enviar configuración</button>
+  </footer>
+
+  <div id="toasts"></div>
+
+  <!-- obs-websocket-js v5 desde CDN (necesita internet; para uso offline descarga
+       https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js
+       junto a este archivo y cambia el src por "obs-ws.global.js") -->
+  <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js"></script>
+  <script>
+/* ==========================================================================
+ * BUS DE COMUNICACIÓN — idéntico en Overlay_logo.html y Control_logo.html
+ * --------------------------------------------------------------------------
+ * Envía y recibe mensajes por DOS vías a la vez:
+ *
+ *   1) OBS WebSocket v5 (obs-websocket-js) → request "BroadcastCustomEvent".
+ *      OBS reenvía el mensaje a TODOS los clientes conectados como evento
+ *      "CustomEvent". Es la vía fiable entre un Custom Dock y un Browser
+ *      Source, porque en OBS cada uno corre en un contexto CEF distinto.
+ *
+ *   2) BroadcastChannel + evento 'storage' de localStorage (vía local).
+ *      Útil para probar en un navegador normal (dos pestañas del mismo
+ *      origen) sin OBS. Dentro de OBS es solo un respaldo.
+ *
+ * Cada mensaje lleva un id único: si llega por ambas vías se procesa una vez.
+ *
+ * CONFIGURACIÓN DE OBS WEBSOCKET (OBS 28+ ya lo trae integrado):
+ *   OBS → Herramientas → Ajustes del servidor WebSocket
+ *     - Activar servidor WebSocket ✔
+ *     - Puerto del servidor: 4455 (por defecto)
+ *     - Activar autenticación ✔ → "Mostrar información de conexión" para
+ *       ver/copiar la contraseña.
+ *   IP: 127.0.0.1 si el panel/overlay corren en el mismo PC que OBS.
+ *       Si es otro equipo de la LAN, usa la IP local del PC de OBS
+ *       (p. ej. 192.168.1.50) y permite el puerto 4455 en el firewall.
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const APP_ID = 'logoseq';          // identifica nuestros eventos dentro de OBS
+  const RECONNECT_MIN = 1000;        // 1 s
+  const RECONNECT_MAX = 15000;       // 15 s
+
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+  class LogoSeqBus {
+    /**
+     * @param {object} opts
+     * @param {'control'|'overlay'} opts.role
+     * @param {string}   [opts.channel='default'] permite varios overlays independientes
+     * @param {function} opts.onMessage  (msg) => void   — msg = {type, payload, from, role}
+     * @param {function} [opts.onState]  (state, info) => void — estado de la conexión OBS
+     * @param {function} [opts.onLog]    (texto, nivel) => void
+     */
+    constructor(opts) {
+      this.role = opts.role;
+      this.channel = opts.channel || 'default';
+      this.onMessage = opts.onMessage || (() => {});
+      this.onState = opts.onState || (() => {});
+      this.onLog = opts.onLog || (() => {});
+      this.id = uid();
+
+      this.obs = null;
+      this.obsState = 'disconnected';     // disconnected | connecting | connected | reconnecting | error
+      this.obsTarget = null;              // {host, port, password}
+      this.reconnectDelay = RECONNECT_MIN;
+      this.reconnectTimer = null;
+      this.manualClose = false;
+
+      this.seen = new Set();              // ids ya procesados (dedupe)
+      this.seenQueue = [];
+
+      this._initLocal();
+    }
+
+    /* ---------------- Vía local: BroadcastChannel + localStorage ---------------- */
+    _initLocal() {
+      const name = `${APP_ID}-${this.channel}`;
+      try {
+        this.bc = new BroadcastChannel(name);
+        this.bc.onmessage = (e) => this._receive(e.data);
+      } catch (e) { this.bc = null; }
+
+      this.storageKey = `${name}-msg`;
+      this._onStorage = (e) => {
+        if (e.key !== this.storageKey || !e.newValue) return;
+        try { this._receive(JSON.parse(e.newValue)); } catch (_) { /* ignorar */ }
+      };
+      global.addEventListener('storage', this._onStorage);
+    }
+
+    /** Cierra la vía local (al cambiar de canal). */
+    destroy() {
+      this.disconnectObs(true);
+      if (this.bc) this.bc.close();
+      global.removeEventListener('storage', this._onStorage);
+    }
+
+    /* ---------------- Vía OBS WebSocket v5 ---------------- */
+    /**
+     * Conecta a OBS. Si se pierde la conexión, reintenta con backoff
+     * exponencial (1 s → 2 s → 4 s … máx. 15 s) hasta llamar a disconnectObs().
+     */
+    connectObs({ host = '127.0.0.1', port = 4455, password = '' } = {}) {
+      if (typeof global.OBSWebSocket === 'undefined') {
+        this._setState('error', { message: 'No se cargó la librería obs-websocket-js (¿sin internet?)' });
+        return;
+      }
+      this.disconnectObs(true);
+      this.obsTarget = { host, port, password };
+      this.manualClose = false;
+      this.reconnectDelay = RECONNECT_MIN;
+      this._openObs();
+    }
+
+    async _openObs() {
+      clearTimeout(this.reconnectTimer);
+      const { host, port, password } = this.obsTarget;
+      const url = `ws://${host}:${port}`;
+
+      const obs = new global.OBSWebSocket();
+      this.obs = obs;
+
+      obs.on('CustomEvent', (data) => this._receive(data));
+      obs.on('ConnectionClosed', (err) => {
+        if (this.obs !== obs || this.obsState !== 'connected') return;  // solo conexiones ya establecidas
+        if (this.manualClose) return this._setState('disconnected');
+        this._setState('error', { message: `Conexión perdida (${(err && err.code) || '?'})` });
+        this._scheduleReconnect();
+      });
+
+      this._setState('connecting', { url });
+      try {
+        // EventSubscription.General incluye "CustomEvent"; no pedimos más categorías.
+        const info = await obs.connect(url, password || undefined, {
+          eventSubscriptions: global.OBSWebSocket.EventSubscription.General,
+        });
+        if (this.obs !== obs) return;
+        this.reconnectDelay = RECONNECT_MIN;
+        let version = {};
+        try { version = await obs.call('GetVersion'); } catch (_) {}
+        this._setState('connected', { url, rpcVersion: info.negotiatedRpcVersion, version });
+      } catch (err) {
+        if (this.obs !== obs) return;
+        // Código 4009 = autenticación fallida → reintentar despacio
+        const authFail = err && (err.code === 4009 || /auth/i.test(err.message || ''));
+        this._setState('error', {
+          message: authFail ? 'Contraseña incorrecta' : (err && err.message) || 'No se pudo conectar',
+          code: err && err.code,
+        });
+        if (!this.manualClose) this._scheduleReconnect(authFail ? RECONNECT_MAX : undefined);
+      }
+    }
+
+    _scheduleReconnect(forceDelay) {
+      clearTimeout(this.reconnectTimer);
+      const delay = forceDelay || this.reconnectDelay;
+      this.onLog(`Reintentando conexión a OBS en ${Math.round(delay / 1000)} s…`, 'warn');
+      this._setState('reconnecting', { inMs: delay });
+      this.reconnectTimer = setTimeout(() => this._openObs(), delay);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX);
+    }
+
+    disconnectObs(silent) {
+      this.manualClose = true;
+      clearTimeout(this.reconnectTimer);
+      if (this.obs) {
+        const o = this.obs;
+        this.obs = null;
+        try { o.disconnect(); } catch (_) {}
+      }
+      if (!silent) this._setState('disconnected');
+    }
+
+    get obsConnected() { return this.obsState === 'connected'; }
+
+    /** Llamada directa a cualquier request de OBS (p. ej. refrescar una fuente). */
+    async obsCall(request, data) {
+      if (!this.obsConnected) throw new Error('OBS no está conectado');
+      return this.obs.call(request, data);
+    }
+
+    _setState(state, info = {}) {
+      this.obsState = state;
+      this.onState(state, info);
+    }
+
+    /* ---------------- Envío / recepción ---------------- */
+    /** Envía {type, payload} por todas las vías disponibles. */
+    send(type, payload) {
+      const msg = {
+        app: APP_ID, channel: this.channel, id: uid(),
+        from: this.id, role: this.role, type, payload, ts: Date.now(),
+      };
+      this._markSeen(msg.id);
+
+      if (this.bc) { try { this.bc.postMessage(msg); } catch (_) {} }
+      try {
+        // 'storage' solo se dispara en OTRAS pestañas. Evitamos payloads enormes.
+        const raw = JSON.stringify(msg);
+        if (raw.length < 1000000) global.localStorage.setItem(this.storageKey, raw);
+      } catch (_) {}
+
+      if (this.obsConnected) {
+        this.obs.call('BroadcastCustomEvent', { eventData: msg })
+          .catch((e) => this.onLog(`Error al enviar a OBS: ${e.message}`, 'error'));
+      }
+      return msg;
+    }
+
+    _markSeen(id) {
+      this.seen.add(id);
+      this.seenQueue.push(id);
+      if (this.seenQueue.length > 300) this.seen.delete(this.seenQueue.shift());
+    }
+
+    _receive(msg) {
+      if (!msg || msg.app !== APP_ID || msg.channel !== this.channel) return;
+      if (msg.from === this.id || this.seen.has(msg.id)) return;  // propio o duplicado
+      this._markSeen(msg.id);
+      try { this.onMessage(msg); } catch (e) { console.error(e); }
+    }
+  }
+
+  global.LogoSeqBus = LogoSeqBus;
+})(window);
+
+/* ==========================================================================
+ * LÓGICA DEL PANEL DE CONTROL
+ * --------------------------------------------------------------------------
+ * - Gestiona la biblioteca de logos, la secuencia de fases y el escenario.
+ * - Guarda todo en localStorage del dock (persiste entre reinicios de OBS).
+ * - Envía configuración y comandos al overlay mediante LogoSeqBus
+ *   (OBS WebSocket "BroadcastCustomEvent" + BroadcastChannel local).
+ * - Muestra el estado que devuelve el overlay (fase actual, progreso).
+ * ========================================================================== */
+(function () {
+  'use strict';
+
+  const STORE_KEY = 'logoseq-control-state-v1';
+  const $ = (id) => document.getElementById(id);
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  const TRANSITIONS = [
+    ['fade', 'Fundido (fade)'], ['slide-left', 'Deslizar ←'], ['slide-right', 'Deslizar →'],
+    ['slide-up', 'Deslizar ↑'], ['zoom', 'Zoom'], ['blur', 'Desenfoque'], ['cut', 'Corte (sin transición)'],
+  ];
+  const PRESETS = [[300, 150], [400, 200], [600, 300], [800, 400], [500, 500], [1280, 720], [1920, 1080]];
+  const ANCHORS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
+
+  /* ------------------------------------------------------------------------
+   * Estado por defecto.
+   * CONEXIÓN: 127.0.0.1:4455 es lo habitual cuando el dock corre dentro del
+   * mismo OBS. Cambia la IP desde la interfaz si controlas un OBS de otro PC.
+   * La contraseña se introduce en la sección "Conexión OBS" y se guarda en
+   * el almacenamiento local del dock (no se incluye al exportar JSON).
+   * ---------------------------------------------------------------------- */
+  const DEFAULT_STATE = {
+    connection: { host: '127.0.0.1', port: 4455, password: '', channel: 'default', autoConnect: true },
+    stage: { width: 600, height: 300, fit: 'contain', scale: 1, anchor: 'center', offsetX: 0, offsetY: 0 },
+    sceneStages: {},  // {nombreEscena: {width, height, fit, scale, anchor, offsetX, offsetY}}: posición propia por escena
+    stageScene: '',   // escena que se edita en "Tamaño y escala" ('' = por defecto)
+    scenePhases: {},  // {nombreEscena: [fases]}: logos propios por escena (si no está, usa S.phases)
+    seqScene: '',     // escena que se edita en "Secuencia de fases" ('' = por defecto)
+    defaults: { duration: 5000, transition: 'fade', transitionMs: 800 },
+    durationUnit: 's',
+    endBehavior: 'loop',
+    autoSync: true,
+    sourceName: '',
+    url: { includePass: false, debug: false },
+    logos: [],    // {id, name, src}
+    phases: [],   // {id, logoId, duration(ms), transition, transitionMs, scale, enabled}
+  };
+
+  let S = load();
+
+  /* Conexión por parámetros de URL (?host=&port=&password=&channel=).
+   * La usa el plugin nativo de OBS, que lee el puerto y la contraseña del
+   * servidor WebSocket y abre este panel ya configurado. Tienen prioridad
+   * sobre lo guardado y activan la conexión automática. */
+  (function applyUrlConnection() {
+    const p = new URLSearchParams(location.search);
+    if (!p.has('host') && !p.has('port') && !p.has('password')) return;
+    if (p.get('host')) S.connection.host = p.get('host');
+    if (Number(p.get('port'))) S.connection.port = Number(p.get('port'));
+    S.connection.password = p.get('password') || '';
+    if (p.get('channel')) S.connection.channel = p.get('channel');
+    S.connection.autoConnect = true;
+  })();
+  let bus = null;
+  let obsScenes = null;            // [{name, sources:[{name, itemId, key}]}] leído de OBS (null = sin leer)
+  let overlayInputs = new Map();   // nombre de fuente → {key} (key = ?scene= de su URL)
+  let currentScene = '';
+  let overlayStatus = null;
+  let statusReceivedAt = 0;
+  const overlayStatuses = new Map();   // id del overlay → último estado (hay uno por escena)
+
+  /* ======================= Persistencia ======================= */
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      if (raw) return deepMerge(clone(DEFAULT_STATE), raw);
+    } catch (_) {}
+    return clone(DEFAULT_STATE);
+  }
+  function deepMerge(base, extra) {
+    for (const k of Object.keys(extra)) {
+      if (extra[k] && typeof extra[k] === 'object' && !Array.isArray(extra[k]) && base[k] && typeof base[k] === 'object') deepMerge(base[k], extra[k]);
+      else base[k] = extra[k];
+    }
+    return base;
+  }
+  let saveTimer = null, syncTimer = null;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
+      catch (e) { toast('No se pudo guardar (¿demasiadas imágenes incrustadas?)', 'error'); }
+    }, 200);
+  }
+  /** Tras cualquier cambio de datos: guarda y (si está activo) sincroniza con el overlay. */
+  function changed() {
+    save();
+    renderSummary();
+    updateOverlayUrl();
+    if (S.autoSync) {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => sendConfig(false, true), 350);
+    }
+  }
+
+  /* ======================= Utilidades ======================= */
+  /** Convierte rutas locales (Windows, red, macOS/Linux) en URLs file:/// */
+  function normalizeSrc(src) {
+    src = (src || '').trim().replace(/^"|"$/g, '');
+    if (!src) return '';
+    if (/^[a-zA-Z]:[\\/]/.test(src)) {
+      const parts = src.replace(/\\/g, '/').split('/');
+      return 'file:///' + parts[0] + '/' + parts.slice(1).map(encodeURIComponent).join('/');
+    }
+    if (src.startsWith('\\\\')) return 'file:' + src.replace(/\\/g, '/');
+    if (src.startsWith('/') && !src.startsWith('//')) return 'file://' + encodeURI(src);
+    return src;
+  }
+  const nameFromSrc = (src) => {
+    if (src.startsWith('data:')) return 'Imagen';
+    let last = src.split(/[\\/]/).pop() || 'Logo';
+    try { last = decodeURIComponent(last); } catch (_) {}
+    return last.replace(/[?#].*$/, '').replace(/\.[a-z0-9]+$/i, '').slice(0, 40) || 'Logo';
+  };
+  const logoById = (id) => S.logos.find((l) => l.id === id);
+  /* Secuencia que se edita: la de la escena elegida (si tiene logos propios) o la por defecto. */
+  const seqLocked = () => !!S.seqScene && !S.scenePhases[S.seqScene];   // escena que usa los logos por defecto
+  const seq = () => (S.seqScene && S.scenePhases[S.seqScene]) || S.phases;
+  const seqLabel = () => (S.seqScene && S.scenePhases[S.seqScene] ? `la secuencia de «${S.seqScene}»` : 'la secuencia por defecto');
+  const allSeqs = () => [S.phases, ...Object.values(S.scenePhases)];
+  const findPhase = (id) => { for (const l of allSeqs()) { const p = l.find((x) => x.id === id); if (p) return p; } return null; };
+  const activeOf = (list) => list.filter((p) => p.enabled !== false && logoById(p.logoId) && logoById(p.logoId).src);
+  const activePhases = () => activeOf(seq());
+  const toUnit = (ms) => (S.durationUnit === 's' ? +(ms / 1000).toFixed(3) : Math.round(ms));
+  const fromUnit = (v) => Math.max(250, S.durationUnit === 's' ? Math.round(parseFloat(v) * 1000) : Math.round(parseFloat(v))) || 250;
+  const fmtSecs = (ms) => (ms >= 60000 ? `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s` : `${(ms / 1000).toFixed(1)}s`);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const transitionOptions = (sel) => TRANSITIONS.map(([v, l]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${l}</option>`).join('');
+
+  function toast(text, kind = '') {
+    const el = document.createElement('div');
+    el.className = `toast ${kind}`;
+    el.textContent = text;
+    $('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3200);
+  }
+  function log(text, level = '') {
+    const line = document.createElement('div');
+    line.className = level;
+    line.textContent = `${new Date().toLocaleTimeString()}  ${text}`;
+    const box = $('log');
+    box.appendChild(line);
+    while (box.childNodes.length > 60) box.firstChild.remove();
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ======================= Comunicación con el overlay ======================= */
+  function buildConfig() {
+    const mapPhases = (list) => activeOf(list).map((p) => {
+      const logo = logoById(p.logoId);
+      return {
+        id: p.id, name: logo.name, src: logo.src,
+        duration: p.duration, transition: p.transition,
+        transitionMs: p.transitionMs, scale: p.scale || 1,
+      };
+    });
+    const scenePhases = {};
+    for (const [k, list] of Object.entries(S.scenePhases)) scenePhases[k] = mapPhases(list);
+    return { stage: { ...S.stage }, sceneStages: clone(S.sceneStages), phases: mapPhases(S.phases), scenePhases, endBehavior: S.endBehavior };
+  }
+
+  function sendConfig(autoplay = false, silent = false) {
+    if (!bus) return;
+    const config = buildConfig();
+    bus.send('config', { config, autoplay });
+    if (!silent) toast(`Configuración enviada (${config.phases.length} fases)${bus.obsConnected ? '' : ' — OBS sin conexión, solo vía local'}`, bus.obsConnected ? 'ok' : 'warn');
+    if (JSON.stringify(config).length > 4000000) toast('La configuración es muy pesada; usa URLs/rutas en vez de imágenes incrustadas', 'warn');
+  }
+
+  function command(cmd, payload) {
+    if (!bus) return;
+    if (cmd === 'play' || cmd === 'toggle') sendConfig(false, true);   // asegura la última versión
+    bus.send(cmd, payload || {});
+  }
+
+  function createBus() {
+    if (bus) bus.destroy();
+    bus = new window.LogoSeqBus({
+      role: 'control',
+      channel: S.connection.channel || 'default',
+      onMessage(msg) {
+        if (msg.role !== 'overlay') return;
+        switch (msg.type) {
+          case 'hello':                         // un overlay acaba de cargarse/conectarse
+            log('Overlay detectado, enviando configuración', 'ok');
+            sendConfig(false, true);
+            break;
+          case 'status': {
+            overlayStatuses.set(msg.from, { ...msg.payload, at: performance.now() });
+            // Prioridad: el overlay visible en programa; si no, el último que respondió
+            const all = [...overlayStatuses.values()].sort((a, b) => b.at - a.at);
+            overlayStatus = all.find((x) => x.active) || all[0];
+            statusReceivedAt = overlayStatus.at;
+            renderStatus();
+            break;
+          }
+          case 'error':
+            log(`Overlay: ${msg.payload.message}`, 'error');
+            toast(msg.payload.message, 'error');
+            break;
+        }
+      },
+      onState(state, info) {
+        $('connPill').dataset.state = state;
+        const texts = { connected: 'OBS conectado', connecting: 'Conectando…', reconnecting: 'Reconectando…', error: 'Error', disconnected: 'Sin conexión' };
+        $('connText').textContent = texts[state] || state;
+        if (state === 'connected') {
+          setTimeout(() => {
+            if (!overlayStatus) {
+              $('nowSub').textContent = 'Overlay sin respuesta · pulsa “Vincular overlay en OBS”';
+              $('cardScenes').open = true;
+              log('El overlay no responde. Usa "Vincular overlay en OBS" para configurarlo.', 'warn');
+            }
+          }, 4000);
+          const v = info.version || {};
+          $('obsVersion').textContent = v.obsVersion ? `OBS ${v.obsVersion} · WS ${v.obsWebSocketVersion}` : '';
+          log(`Conectado a ${info.url}`, 'ok');
+          toast('Conectado a OBS', 'ok');
+          bus.send('hello', {});              // pide estado al overlay
+          sendConfig(false, true);
+          scanScenes();
+        } else if (state === 'error') {
+          log(info.message, 'error');
+          if (info.message === 'Contraseña incorrecta') { $('cardConn').open = true; toast('Contraseña de OBS WebSocket incorrecta', 'error'); }
+        } else if (state === 'disconnected') {
+          $('obsVersion').textContent = '';
+          obsScenes = null; renderScenes(); renderStageTarget();
+        }
+      },
+      onLog: log,
+    });
+    bus.send('hello', {});                    // vía local
+  }
+
+  function connect() {
+    const c = S.connection;
+    if (!bus || bus.channel !== (c.channel || 'default')) createBus();
+    log(`Conectando a ws://${c.host}:${c.port} (canal "${c.channel}")…`);
+    bus.connectObs({ host: c.host, port: c.port, password: c.password });
+  }
+
+  /* ======================= Render: estado de reproducción ======================= */
+  function renderStatus() {
+    const st = overlayStatus;
+    if (!st) return;
+    const labels = { playing: 'Reproduciendo', paused: 'En pausa', stopped: 'Detenido', finished: 'Finalizado' };
+    const current = st.index < 0 ? null : st.phaseId ? findPhase(st.phaseId) : activePhases()[st.index];
+    const logo = current && logoById(current.logoId);
+    const where = st.scene ? ` · ${st.scene}` : '';
+    $('nowTitle').textContent = st.name || labels[st.state] || '—';
+    $('nowSub').textContent = st.index >= 0
+      ? `${labels[st.state]} · fase ${st.index + 1} de ${st.total}${where}`
+      : `${labels[st.state] || st.state} · ${st.total} fases en el overlay${where}`;
+    $('nowThumb').style.backgroundImage = logo ? `url("${logo.src.replace(/"/g, '%22')}")` : '';
+    document.querySelector('[data-cmd="play"]').classList.toggle('active', st.state === 'playing');
+    document.querySelector('[data-cmd="pause"]').classList.toggle('active', st.state === 'paused');
+    const currentId = current ? current.id : null;
+    document.querySelectorAll('.phase').forEach((el) => el.classList.toggle('current', el.dataset.id === currentId));
+  }
+
+  function tickProgress() {
+    const st = overlayStatus;
+    let pct = 0;
+    if (st && st.durationMs > 0 && st.index >= 0) {
+      let rem = st.remainingMs;
+      if (st.state === 'playing') rem -= performance.now() - statusReceivedAt;
+      pct = Math.min(100, Math.max(0, (1 - rem / st.durationMs) * 100));
+    }
+    $('progressBar').style.width = pct + '%';
+    requestAnimationFrame(tickProgress);
+  }
+
+  /* ======================= Render: biblioteca ======================= */
+  const thumbHTML = (src) =>
+    `<div class="thumb">${src ? `<img src="${esc(src)}" alt="" onerror="this.parentNode.classList.add('broken');this.remove()">` : ''}</div>`;
+
+  function renderLogos() {
+    const list = $('logoList');
+    $('libCount').textContent = S.logos.length || '';
+    if (!S.logos.length) {
+      list.innerHTML = '<li class="empty">Añade logos por URL, ruta local o arrastra imágenes aquí.</li>';
+      return;
+    }
+    list.innerHTML = S.logos.map((l) => {
+      const embedded = l.src.startsWith('data:');
+      return `
+      <li class="logo-item" data-id="${l.id}">
+        ${thumbHTML(l.src)}
+        <div class="logo-meta">
+          <input type="text" data-field="name" value="${esc(l.name)}" title="Nombre">
+          <input type="text" class="src" data-field="src" value="${esc(embedded ? '(imagen incrustada)' : l.src)}" ${embedded ? 'readonly' : ''} title="URL o ruta">
+        </div>
+        <div class="item-actions">
+          <button class="btn ghost" data-act="to-seq" title="Añadir a la secuencia"><svg><use href="#i-plus"/></svg></button>
+          <button class="btn ghost danger" data-act="del" title="Eliminar"><svg><use href="#i-trash"/></svg></button>
+        </div>
+      </li>`;
+    }).join('');
+  }
+
+  function addLogo(src, name) {
+    src = normalizeSrc(src);
+    if (!src) { toast('Indica una URL o ruta', 'warn'); return null; }
+    const logo = { id: uid(), name: (name || '').trim() || nameFromSrc(src), src };
+    S.logos.push(logo);
+    renderLogos();
+    renderPhases();
+    changed();
+    return logo;
+  }
+
+  function readFiles(files) {
+    [...files].filter((f) => f.type.startsWith('image/')).forEach((f) => {
+      if (f.size > 1500000) toast(`${f.name} pesa ${(f.size / 1e6).toFixed(1)} MB; mejor usa una ruta local`, 'warn');
+      const r = new FileReader();
+      r.onload = () => addLogo(r.result, f.name.replace(/\.[^.]+$/, ''));
+      r.readAsDataURL(f);
+    });
+  }
+
+  /* ======================= Render: secuencia de fases ======================= */
+  function renderPhases() {
+    const list = $('phaseList');
+    const phases = seq();
+    const editable = !seqLocked();
+    $('seqCount').textContent = `${phases.length || ''} ${S.seqScene ? `«${S.seqScene}»${editable ? '' : ' = por defecto'}` : 'por defecto'}`.trim();
+    if (!phases.length) {
+      list.innerHTML = '<li class="empty">Sin fases. Usa “+” en un logo o “Añadir todos los logos”.</li>';
+      renderSummary();
+      return;
+    }
+    const stepAttr = S.durationUnit === 's' ? '0.25' : '50';
+    const logoOptions = (sel) => S.logos.map((l) => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.name)}</option>`).join('')
+      || '<option value="">(sin logos)</option>';
+
+    list.innerHTML = phases.map((p, i) => {
+      const logo = logoById(p.logoId);
+      return `
+      <li class="phase${p.enabled === false ? ' disabled' : ''}" data-id="${p.id}" draggable="${editable}">
+        <div class="phase-top">
+          <span class="handle" title="Arrastrar para reordenar">⠿</span>
+          <span class="num">${i + 1}</span>
+          ${thumbHTML(logo && logo.src)}
+          <select data-field="logoId" title="Logo">${logoOptions(p.logoId)}</select>
+          <div class="item-actions">
+            <button class="btn ghost" data-act="goto" title="Mostrar ahora"><svg><use href="#i-target"/></svg></button>
+            <button class="btn ghost" data-act="up" title="Subir"><svg><use href="#i-up"/></svg></button>
+            <button class="btn ghost" data-act="down" title="Bajar"><svg><use href="#i-down"/></svg></button>
+            <button class="btn ghost" data-act="dup" title="Duplicar"><svg><use href="#i-copy"/></svg></button>
+            <button class="btn ghost danger" data-act="del" title="Eliminar"><svg><use href="#i-trash"/></svg></button>
+          </div>
+        </div>
+        <div class="phase-bottom">
+          <label class="field">Duración (${S.durationUnit})<input type="number" data-field="duration" min="0" step="${stepAttr}" value="${toUnit(p.duration)}"></label>
+          <label class="field">Transición<select data-field="transition">${transitionOptions(p.transition)}</select></label>
+          <label class="field">Trans. (ms)<input type="number" data-field="transitionMs" min="0" step="50" value="${p.transitionMs}"></label>
+          <label class="field">Escala<input type="number" data-field="scale" min="0.05" step="0.05" value="${p.scale ?? 1}"></label>
+          <label class="check" title="Incluir en la secuencia"><input type="checkbox" data-field="enabled" ${p.enabled === false ? '' : 'checked'}> Activa</label>
+        </div>
+      </li>`;
+    }).join('');
+    renderSummary();
+    renderStatus();
+  }
+
+  function renderSummary() {
+    const active = activePhases();
+    const total = active.reduce((a, p) => a + (Number(p.duration) || 0), 0);
+    $('seqSummary').textContent = `${active.length} activas · ciclo de ${fmtSecs(total)}`;
+  }
+
+  const newPhase = (logoId) => ({
+    id: uid(), logoId, duration: S.defaults.duration, transition: S.defaults.transition,
+    transitionMs: S.defaults.transitionMs, scale: 1, enabled: true,
+  });
+
+  function movePhase(from, to) {
+    const list = seq();
+    if (to < 0 || to >= list.length || from === to) return;
+    const [p] = list.splice(from, 1);
+    list.splice(to, 0, p);
+    renderPhases();
+    changed();
+  }
+
+  /* ======================= Render: escenario y formularios ======================= */
+  /** Configuración que se está editando: la de la escena elegida o la por defecto. */
+  const editingStage = () => (S.stageScene && S.sceneStages[S.stageScene]) || S.stage;
+  /** Igual, pero al editar una escena sin posición propia se la crea (copia de la por defecto). */
+  function stageForEdit() {
+    const k = S.stageScene;
+    if (!k) return S.stage;
+    if (!S.sceneStages[k]) { S.sceneStages[k] = clone(S.stage); renderStageTarget(); renderScenes(); }
+    return S.sceneStages[k];
+  }
+
+  function renderStage() {
+    const s = editingStage();
+    $('sW').value = s.width; $('sH').value = s.height; $('sFit').value = s.fit;
+    $('sScale').value = s.scale; $('sScaleLabel').textContent = Math.round(s.scale * 100) + '%';
+    $('sOX').value = s.offsetX; $('sOY').value = s.offsetY;
+    $('anchorGrid').innerHTML = ANCHORS.map((a) => `<button type="button" data-anchor="${a}" title="${a}" class="${a === s.anchor ? 'active' : ''}"></button>`).join('');
+    $('presets').innerHTML = PRESETS.map(([w, h]) => `<button type="button" class="btn" data-w="${w}" data-h="${h}">${w}×${h}</button>`).join('');
+  }
+
+  function renderForms() {
+    const c = S.connection;
+    $('cHost').value = c.host; $('cPort').value = c.port; $('cPass').value = c.password;
+    $('cChannel').value = c.channel; $('cAuto').checked = !!c.autoConnect;
+    $('defTransition').innerHTML = transitionOptions(S.defaults.transition);
+    $('durUnit').value = S.durationUnit;
+    $('defDuration').value = toUnit(S.defaults.duration);
+    $('defDuration').step = S.durationUnit === 's' ? '0.25' : '50';
+    $('defTransMs').value = S.defaults.transitionMs;
+    $('endBehavior').value = S.endBehavior;
+    $('autoSync').checked = !!S.autoSync;
+    $('sourceName').value = S.sourceName;
+    $('urlIncludePass').checked = !!S.url.includePass;
+    $('urlDebug').checked = !!S.url.debug;
+    updateOverlayUrl();
+  }
+
+  /** URL del overlay con la conexión en parámetros (asume que está en la misma carpeta que este panel). */
+  function buildOverlayUrl(includePass, scene) {
+    const base = location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '') + 'Overlay_logo.html';
+    const c = S.connection;
+    const q = new URLSearchParams({ host: c.host, port: c.port, channel: c.channel || 'default' });
+    if (includePass && c.password) q.set('password', c.password);
+    if (scene) q.set('scene', scene);
+    if (S.url.debug) q.set('debug', '1');
+    return `${base}?${q}`;
+  }
+  function updateOverlayUrl() { $('overlayUrl').value = buildOverlayUrl(S.url.includePass); }
+
+  /* ======================= Overlay en escenas ======================= */
+  const sceneParamOf = (url) => { try { return new URL(url).searchParams.get('scene') || ''; } catch (_) { return ''; } };
+
+  /** Fuentes de navegador que cargan Overlay_logo.html → Map(nombre → {key}). */
+  async function findOverlayInputs() {
+    const { inputs } = await bus.obsCall('GetInputList', { inputKind: 'browser_source' });
+    const found = new Map();
+    for (const inp of inputs) {
+      const { inputSettings: st } = await bus.obsCall('GetInputSettings', { inputName: inp.inputName });
+      if (/overlay_logo\.html/i.test(`${st.url || ''} ${st.local_file || ''}`)) found.set(inp.inputName, { key: sceneParamOf(st.url || '') });
+    }
+    return found;
+  }
+
+  /** Lee de OBS las escenas y en cuáles está el overlay. */
+  async function scanScenes() {
+    if (!bus || !bus.obsConnected) { obsScenes = null; renderScenes(); renderStageTarget(); return; }
+    try {
+      const list = await bus.obsCall('GetSceneList');
+      const { studioModeEnabled } = await bus.obsCall('GetStudioModeEnabled');
+      currentScene = (studioModeEnabled && list.currentPreviewSceneName) || list.currentProgramSceneName || '';
+      overlayInputs = await findOverlayInputs();
+      const scenes = [];
+      for (const sc of [...list.scenes].sort((x, y) => y.sceneIndex - x.sceneIndex)) {   // mismo orden que en OBS
+        const { sceneItems } = await bus.obsCall('GetSceneItemList', { sceneName: sc.sceneName });
+        const sources = sceneItems.filter((it) => overlayInputs.has(it.sourceName))
+          .map((it) => ({ name: it.sourceName, itemId: it.sceneItemId, key: overlayInputs.get(it.sourceName).key }));
+        scenes.push({ name: sc.sceneName, sources });
+      }
+      obsScenes = scenes;
+    } catch (err) {
+      log(`No se pudieron leer las escenas: ${err.message}`, 'error');
+    }
+    renderScenes();
+    renderStageTarget();
+  }
+
+  function renderScenes() {
+    const list = $('sceneList');
+    const sel = $('addScene');
+    if (!obsScenes) {
+      $('scenesCount').textContent = '';
+      sel.innerHTML = '<option value="">(conecta a OBS)</option>';
+      $('btnAddToScene').disabled = true;
+      list.innerHTML = '<li class="empty">Conecta el panel a OBS para ver las escenas.</li>';
+      return;
+    }
+    const withOverlay = obsScenes.filter((sc) => sc.sources.length);
+    $('scenesCount').textContent = withOverlay.length ? `${withOverlay.length} de ${obsScenes.length}` : '';
+
+    const prev = sel.value;
+    sel.innerHTML = obsScenes.map((sc) => `<option value="${esc(sc.name)}"${sc.sources.length ? ' disabled' : ''}>${esc(sc.name)}${sc.sources.length ? ' (ya tiene)' : ''}${sc.name === currentScene ? ' · actual' : ''}</option>`).join('')
+      || '<option value="">(sin escenas)</option>';
+    const free = obsScenes.filter((sc) => !sc.sources.length).map((sc) => sc.name);
+    sel.value = free.includes(prev) ? prev : (free.includes(currentScene) ? currentScene : (free[0] || ''));
+    $('btnAddToScene').disabled = !free.length;
+
+    if (!withOverlay.length) {
+      list.innerHTML = '<li class="empty">Ninguna escena tiene el overlay. Elige una arriba y pulsa “Agregar overlay”.</li>';
+      return;
+    }
+    list.innerHTML = withOverlay.map((sc) => sc.sources.map((src) => {
+      const key = src.key;
+      const own = !!(key && S.sceneStages[key]);
+      const ownLogos = !!(key && S.scenePhases[key]);
+      const mismatch = key && key !== sc.name;
+      const note = !key ? '<span class="warn"> · sin escena: pulsa “Vincular”</span>'
+        : mismatch ? `<span class="warn"> · usa la posición de «${esc(key)}»</span>` : '';
+      return `
+      <li class="scene-item${key && (S.stageScene === key || S.seqScene === key) ? ' editing' : ''}" data-scene="${esc(sc.name)}" data-source="${esc(src.name)}" data-item="${src.itemId}" data-key="${esc(key)}">
+        <div style="min-width:0">
+          <div class="scene-name">${esc(sc.name)}${sc.name === currentScene ? ' <span class="scene-sub">· actual</span>' : ''}</div>
+          <div class="scene-sub"><span class="tag${own ? ' own' : ''}">${own ? 'posición propia' : 'posición por defecto'}</span><span class="tag${ownLogos ? ' own' : ''}">${ownLogos ? 'logos propios' : 'logos por defecto'}</span>${esc(src.name)}${note}</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn" data-act="cfg" title="Configurar logos, posición y tamaño de esta escena"${key ? '' : ' disabled'}>Configurar</button>
+          <button class="btn ghost danger" data-act="del" title="Quitar el overlay de esta escena"><svg><use href="#i-trash"/></svg></button>
+        </div>
+      </li>`;
+    }).join('')).join('');
+  }
+
+  /** Selector "Configurar para" de la sección Tamaño y escala. */
+  function renderStageTarget() {
+    const keys = [];
+    const add = (k, label) => { if (k && !keys.some((x) => x.k === k)) keys.push({ k, label }); };
+    (obsScenes || []).forEach((sc) => sc.sources.forEach((src) => add(src.key, src.key)));
+    Object.keys(S.sceneStages).forEach((k) => add(k, obsScenes ? `${k} (sin overlay)` : k));
+    if (S.stageScene) add(S.stageScene, S.stageScene);
+
+    $('stageScene').innerHTML = '<option value="">Por defecto (escenas sin posición propia)</option>'
+      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.sceneStages[k] ? '' : ' · usa por defecto'}</option>`).join('');
+    $('stageScene').value = S.stageScene;
+
+    const k = S.stageScene;
+    const own = !!(k && S.sceneStages[k]);
+    $('stageOwnRow').hidden = !k;
+    $('stageOwn').checked = own;
+    $('btnShowScene').disabled = !k || !bus || !bus.obsConnected;
+    $('stageCount').textContent = k ? `«${k}»` : 'por defecto';
+    if (!k) {
+      const users = keys.filter(({ k: x }) => !S.sceneStages[x]).map(({ k: x }) => `«${x}»`);
+      $('stageHint').textContent = users.length
+        ? `Se aplica a: ${users.join(', ')} y a los overlays sin escena.`
+        : 'Se aplica a las escenas que no tienen posición propia.';
+    } else {
+      $('stageHint').textContent = own
+        ? `Los cambios solo afectan a la escena «${k}».`
+        : `«${k}» usa la configuración por defecto (abajo). Si cambias un valor, la escena pasa a tener su posición propia.`;
+    }
+    renderSeqTarget();
+  }
+
+  /** Selector "Logos para" de la sección Secuencia de fases. */
+  function renderSeqTarget() {
+    const keys = [];
+    const add = (k, label) => { if (k && !keys.some((x) => x.k === k)) keys.push({ k, label }); };
+    (obsScenes || []).forEach((sc) => sc.sources.forEach((src) => add(src.key, src.key)));
+    Object.keys(S.scenePhases).forEach((k) => add(k, obsScenes ? `${k} (sin overlay)` : k));
+    if (S.seqScene) add(S.seqScene, S.seqScene);
+
+    $('seqScene').innerHTML = '<option value="">Por defecto (escenas sin logos propios)</option>'
+      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.scenePhases[k] ? ' · logos propios' : ' · usa por defecto'}</option>`).join('');
+    $('seqScene').value = S.seqScene;
+
+    const k = S.seqScene;
+    const locked = seqLocked();
+    $('seqOwnRow').hidden = !k;
+    $('seqDefault').checked = locked;
+    $('seqFields').disabled = locked;
+    if (!k) {
+      const users = keys.filter(({ k: x }) => !S.scenePhases[x]).map(({ k: x }) => `«${x}»`);
+      $('seqHint').textContent = users.length
+        ? `La usan: ${users.join(', ')} y los overlays sin escena.`
+        : 'La usan las escenas que no tienen logos propios.';
+    } else {
+      $('seqHint').textContent = locked
+        ? `«${k}» muestra la secuencia por defecto (abajo, solo lectura). Desmarca la casilla para elegir sus propios logos.`
+        : `«${k}» tiene sus propios logos: los cambios de abajo solo afectan a esta escena.`;
+    }
+  }
+
+  function selectSeqScene(k) {
+    S.seqScene = k || '';
+    save();
+    renderSeqTarget();
+    renderPhases();
+    renderScenes();
+  }
+
+  /** Escena elegida en "Configurar"/"Agregar overlay": se edita su secuencia y su posición. */
+  function selectScene(k) {
+    S.seqScene = k || '';
+    selectStageScene(k);
+    renderSeqTarget();
+    renderPhases();
+  }
+
+  function selectStageScene(k) {
+    S.stageScene = k || '';
+    save();
+    renderStageTarget();
+    renderStage();
+    renderScenes();
+  }
+
+  /* ------------------------------------------------------------------------
+   * Agregar el overlay a una escena: crea una Fuente de navegador propia con
+   * ?scene=<escena> en la URL. Usa modo URL (is_local_file = false) porque:
+   *   - en modo "Archivo local" OBS no acepta ?parámetros → el overlay no
+   *     recibe la contraseña ni la escena;
+   *   - en modo "Archivo local" OBS sirve la página como http://absolute/…,
+   *     y desde ahí Chromium bloquea las imágenes file:///.
+   * ---------------------------------------------------------------------- */
+  async function addOverlayToScene(scene) {
+    if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
+    if (!scene) return toast('Elige una escena', 'warn');
+    const sc = obsScenes && obsScenes.find((x) => x.name === scene);
+    if (sc && sc.sources.length) return toast(`La escena "${scene}" ya tiene el overlay`, 'warn');
+    try {
+      const video = await bus.obsCall('GetVideoSettings');
+      const names = new Set((await bus.obsCall('GetInputList')).inputs.map((i) => i.inputName));
+      const base = `Overlay Logos (${scene})`;
+      let name = base, n = 2;
+      while (names.has(name)) name = `${base} ${n++}`;
+      await bus.obsCall('CreateInput', {
+        sceneName: scene, inputName: name, inputKind: 'browser_source', sceneItemEnabled: true,
+        inputSettings: { is_local_file: false, url: buildOverlayUrl(true, scene), width: video.baseWidth, height: video.baseHeight },
+      });
+      S.sourceName = name;
+      $('sourceName').value = name;
+      log(`Fuente "${name}" creada en la escena "${scene}"`, 'ok');
+      toast(`Overlay agregado a "${scene}"`, 'ok');
+      await scanScenes();
+      selectScene(scene);                // listo para configurar sus logos y su posición
+      $('cardStage').open = true;
+    } catch (err) {
+      log(`No se pudo agregar el overlay: ${err.message}`, 'error');
+      toast(`No se pudo agregar: ${err.message}`, 'error');
+    }
+  }
+
+  async function removeOverlay(sceneName, sourceName, itemId) {
+    if (!confirm(`¿Quitar el overlay "${sourceName}" de la escena "${sceneName}"?`)) return;
+    try {
+      const uses = (obsScenes || []).filter((sc) => sc.sources.some((s) => s.name === sourceName)).length;
+      if (uses <= 1) await bus.obsCall('RemoveInput', { inputName: sourceName });
+      else await bus.obsCall('RemoveSceneItem', { sceneName, sceneItemId: itemId });
+      log(`Overlay quitado de "${sceneName}"`, 'ok');
+      await scanScenes();
+    } catch (err) { toast(`No se pudo quitar: ${err.message}`, 'error'); }
+  }
+
+  /* ------------------------------------------------------------------------
+   * Vincular overlay: actualiza la URL (IP, puerto, contraseña, canal y
+   * escena) de todas las fuentes del overlay. Una fuente que está en una sola
+   * escena queda asociada a esa escena (fuentes antiguas o escenas
+   * renombradas). Si no hay ninguna, la crea en la escena actual.
+   * ---------------------------------------------------------------------- */
+  async function linkOverlay() {
+    if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
+    try {
+      await scanScenes();
+      if (!obsScenes) return;
+      if (!overlayInputs.size) return addOverlayToScene(currentScene);
+
+      const where = new Map();
+      obsScenes.forEach((sc) => sc.sources.forEach((s) => {
+        if (!where.has(s.name)) where.set(s.name, []);
+        if (!where.get(s.name).includes(sc.name)) where.get(s.name).push(sc.name);
+      }));
+      const linked = [];
+      for (const [name, info] of overlayInputs) {
+        const scenesOf = where.get(name) || [];
+        let key = info.key;
+        if (scenesOf.length === 1 && key !== scenesOf[0]) {
+          const target = scenesOf[0];
+          const shared = [...overlayInputs].some(([n, i]) => n !== name && i.key === key);
+          if (key && S.sceneStages[key] && !S.sceneStages[target]) {     // escena renombrada: conserva su posición
+            S.sceneStages[target] = S.sceneStages[key];
+            if (!shared) delete S.sceneStages[key];
+            if (S.stageScene === key) S.stageScene = target;
+          }
+          if (key && S.scenePhases[key] && !S.scenePhases[target]) {     // ídem con sus logos propios
+            S.scenePhases[target] = S.scenePhases[key];
+            if (!shared) delete S.scenePhases[key];
+            if (S.seqScene === key) S.seqScene = target;
+          }
+          key = target;
+        }
+        await bus.obsCall('SetInputSettings', { inputName: name, inputSettings: { is_local_file: false, url: buildOverlayUrl(true, key) } });
+        linked.push(name);
+      }
+      S.sourceName = linked[0];
+      $('sourceName').value = S.sourceName;
+      log(`Overlay vinculado: ${linked.join(', ')}`, 'ok');
+      toast(`Overlay vinculado (${linked.length} fuente${linked.length > 1 ? 's' : ''})`, 'ok');
+      changed();
+      await scanScenes();
+      renderStage();
+    } catch (err) {
+      log(`No se pudo vincular el overlay: ${err.message}`, 'error');
+      toast(`No se pudo vincular: ${err.message}`, 'error');
+    }
+  }
+
+  /* ======================= Eventos ======================= */
+  function bindEvents() {
+    // --- Transporte ---
+    document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => command(b.dataset.cmd)));
+    document.addEventListener('keydown', (e) => {   // Atajos: Espacio, ←, →, Esc
+      if (e.target.matches('input, select, textarea')) return;
+      const map = { ' ': 'toggle', ArrowRight: 'next', ArrowLeft: 'prev', Escape: 'stop' };
+      if (map[e.key]) { e.preventDefault(); command(map[e.key]); }
+    });
+
+    // --- Conexión ---
+    $('connForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      S.connection.host = $('cHost').value.trim() || '127.0.0.1';
+      S.connection.port = Number($('cPort').value) || 4455;
+      S.connection.password = $('cPass').value;
+      S.connection.channel = $('cChannel').value.trim() || 'default';
+      save(); updateOverlayUrl();
+      connect();
+    });
+    $('btnDisconnect').addEventListener('click', () => { bus && bus.disconnectObs(); log('Desconectado manualmente'); });
+    $('cShowPass').addEventListener('change', (e) => { $('cPass').type = e.target.checked ? 'text' : 'password'; });
+    $('cAuto').addEventListener('change', (e) => { S.connection.autoConnect = e.target.checked; save(); });
+
+    // --- Biblioteca ---
+    $('btnAddLogo').addEventListener('click', () => {
+      if (addLogo($('newSrc').value, $('newName').value)) { $('newSrc').value = ''; $('newName').value = ''; }
+    });
+    $('newSrc').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnAddLogo').click(); });
+    $('btnPickFile').addEventListener('click', () => $('filePicker').click());
+    $('filePicker').addEventListener('change', (e) => { readFiles(e.target.files); e.target.value = ''; });
+
+    const lib = $('logoList');
+    lib.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); lib.classList.add('drag'); } });
+    lib.addEventListener('dragleave', () => lib.classList.remove('drag'));
+    lib.addEventListener('drop', (e) => {
+      lib.classList.remove('drag');
+      if (!e.dataTransfer.files.length) return;
+      e.preventDefault();
+      readFiles(e.dataTransfer.files);
+    });
+    lib.addEventListener('input', (e) => {
+      const li = e.target.closest('.logo-item');
+      if (!li || e.target.dataset.field !== 'name') return;
+      logoById(li.dataset.id).name = e.target.value;
+      changed();
+    });
+    lib.addEventListener('change', (e) => {
+      const li = e.target.closest('.logo-item'); if (!li) return;
+      const logo = logoById(li.dataset.id);
+      if (e.target.dataset.field === 'src') { logo.src = normalizeSrc(e.target.value); renderLogos(); }
+      renderPhases();
+      changed();
+    });
+    lib.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]'); if (!btn) return;
+      const id = btn.closest('.logo-item').dataset.id;
+      if (btn.dataset.act === 'to-seq') { seq().push(newPhase(id)); toast(`Añadido a ${seqLabel()}`); }
+      if (btn.dataset.act === 'del') {
+        const used = allSeqs().reduce((n, l) => n + l.filter((p) => p.logoId === id).length, 0);
+        if (used && !confirm(`Este logo se usa en ${used} fase(s) (todas las escenas). ¿Eliminarlo junto con esas fases?`)) return;
+        S.logos = S.logos.filter((l) => l.id !== id);
+        S.phases = S.phases.filter((p) => p.logoId !== id);
+        for (const k of Object.keys(S.scenePhases)) S.scenePhases[k] = S.scenePhases[k].filter((p) => p.logoId !== id);
+        renderLogos();
+      }
+      renderPhases();
+      changed();
+    });
+
+    // --- Secuencia: valores por defecto ---
+    $('durUnit').addEventListener('change', (e) => { S.durationUnit = e.target.value; renderForms(); renderPhases(); save(); });
+    $('defDuration').addEventListener('change', (e) => { S.defaults.duration = fromUnit(e.target.value); save(); });
+    $('defTransition').addEventListener('change', (e) => { S.defaults.transition = e.target.value; save(); });
+    $('defTransMs').addEventListener('change', (e) => { S.defaults.transitionMs = Math.max(0, Number(e.target.value) || 0); save(); });
+    $('endBehavior').addEventListener('change', (e) => { S.endBehavior = e.target.value; changed(); });
+    $('btnAddAll').addEventListener('click', () => {
+      if (!S.logos.length) return toast('La biblioteca está vacía', 'warn');
+      S.logos.forEach((l) => seq().push(newPhase(l.id)));
+      renderPhases(); changed();
+    });
+    $('btnApplyDefaults').addEventListener('click', () => {
+      seq().forEach((p) => Object.assign(p, { duration: S.defaults.duration, transition: S.defaults.transition, transitionMs: S.defaults.transitionMs }));
+      renderPhases(); changed(); toast('Valores aplicados a todas las fases');
+    });
+    $('btnClearSeq').addEventListener('click', () => {
+      if (seq().length && confirm(`¿Eliminar todas las fases de ${seqLabel()}?`)) { seq().length = 0; renderPhases(); changed(); }
+    });
+
+    // --- Secuencia por escena ---
+    $('seqScene').addEventListener('change', (e) => selectSeqScene(e.target.value));
+    $('seqDefault').addEventListener('change', (e) => {
+      const k = S.seqScene; if (!k) return;
+      if (!e.target.checked) {
+        // Empieza con una copia de la secuencia por defecto (ids nuevos)
+        S.scenePhases[k] = S.phases.map((p) => ({ ...clone(p), id: uid() }));
+        toast(`«${k}» ahora tiene sus propios logos`, 'ok');
+      } else if (confirm(`¿Descartar los logos propios de «${k}»? Volverá a mostrar la secuencia por defecto.`)) {
+        delete S.scenePhases[k];
+      } else e.target.checked = false;
+      renderSeqTarget(); renderPhases(); renderScenes(); changed();
+    });
+
+    // --- Secuencia: edición de cada fase (delegación de eventos) ---
+    const pl = $('phaseList');
+    const phaseOf = (el) => seq().find((p) => p.id === el.closest('.phase').dataset.id);
+    pl.addEventListener('change', (e) => {
+      const f = e.target.dataset.field; if (!f) return;
+      const p = phaseOf(e.target);
+      if (f === 'duration') { p.duration = fromUnit(e.target.value || 0); e.target.value = toUnit(p.duration); }
+      else if (f === 'transitionMs') p.transitionMs = Math.max(0, Number(e.target.value) || 0);
+      else if (f === 'scale') p.scale = Math.max(0.05, Number(e.target.value) || 1);
+      else if (f === 'enabled') { p.enabled = e.target.checked; e.target.closest('.phase').classList.toggle('disabled', !p.enabled); }
+      else if (f === 'logoId') { p.logoId = e.target.value; renderPhases(); }
+      else p[f] = e.target.value;
+      changed();
+    });
+    pl.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]'); if (!btn) return;
+      const p = phaseOf(btn);
+      const i = seq().indexOf(p);
+      const act = btn.dataset.act;
+      if (act === 'goto') {
+        const idx = activePhases().indexOf(p);
+        if (idx < 0) return toast('La fase está desactivada o sin imagen', 'warn');
+        sendConfig(false, true);
+        return command('goto', { index: idx, phaseId: p.id });
+      }
+      if (act === 'up') return movePhase(i, i - 1);
+      if (act === 'down') return movePhase(i, i + 1);
+      if (act === 'dup') seq().splice(i + 1, 0, { ...clone(p), id: uid() });
+      if (act === 'del') seq().splice(i, 1);
+      renderPhases(); changed();
+    });
+
+    // Arrastrar y soltar para reordenar fases
+    let dragId = null;
+    pl.addEventListener('dragstart', (e) => {
+      const li = e.target.closest('.phase'); if (!li) return;
+      dragId = li.dataset.id;
+      li.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
+    });
+    pl.addEventListener('dragover', (e) => {
+      if (!dragId) return;
+      e.preventDefault();
+      pl.querySelectorAll('.drop-before, .drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after'));
+      const li = e.target.closest('.phase');
+      if (!li || li.dataset.id === dragId) return;
+      const r = li.getBoundingClientRect();
+      li.classList.add(e.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+    });
+    pl.addEventListener('drop', (e) => {
+      if (!dragId) return;
+      e.preventDefault();
+      const li = e.target.closest('.phase');
+      if (li && li.dataset.id !== dragId) {
+        const after = li.classList.contains('drop-after');
+        const list = seq();
+        const [moved] = list.splice(list.findIndex((p) => p.id === dragId), 1);
+        const to = list.findIndex((p) => p.id === li.dataset.id) + (after ? 1 : 0);
+        list.splice(to, 0, moved);
+        renderPhases(); changed();
+      }
+    });
+    pl.addEventListener('dragend', () => {
+      dragId = null;
+      pl.querySelectorAll('.dragging, .drop-before, .drop-after').forEach((x) => x.classList.remove('dragging', 'drop-before', 'drop-after'));
+    });
+
+    // --- Escenario ---
+    const num = (id, key, min) => $(id).addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      if (e.target.value !== '' && Number.isFinite(v) && (min === undefined || v >= min)) { stageForEdit()[key] = v; changed(); }
+    });
+    num('sW', 'width', 1); num('sH', 'height', 1); num('sOX', 'offsetX'); num('sOY', 'offsetY');
+    $('sFit').addEventListener('change', (e) => { stageForEdit().fit = e.target.value; changed(); });
+    $('sScale').addEventListener('input', (e) => {
+      const st = stageForEdit();
+      st.scale = Number(e.target.value);
+      $('sScaleLabel').textContent = Math.round(st.scale * 100) + '%';
+      changed();
+    });
+    $('anchorGrid').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-anchor]'); if (!b) return;
+      stageForEdit().anchor = b.dataset.anchor; renderStage(); changed();
+    });
+    $('presets').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-w]'); if (!b) return;
+      const st = stageForEdit();
+      st.width = +b.dataset.w; st.height = +b.dataset.h; renderStage(); changed();
+    });
+
+    // --- Escenario por escena ---
+    $('stageScene').addEventListener('change', (e) => selectStageScene(e.target.value));
+    $('stageOwn').addEventListener('change', (e) => {
+      const k = S.stageScene; if (!k) return;
+      if (e.target.checked) S.sceneStages[k] = clone(S.stage);
+      else if (confirm(`¿Quitar la posición propia de «${k}»? Volverá a usar la configuración por defecto.`)) delete S.sceneStages[k];
+      else e.target.checked = true;
+      renderStageTarget(); renderStage(); renderScenes(); changed();
+    });
+    $('btnShowScene').addEventListener('click', async () => {
+      const k = S.stageScene; if (!k) return;
+      try {
+        const { studioModeEnabled } = await bus.obsCall('GetStudioModeEnabled');
+        if (studioModeEnabled) await bus.obsCall('SetCurrentPreviewScene', { sceneName: k });
+        else {
+          if (!confirm(`Esto cambia la escena en vivo (programa) a «${k}». ¿Continuar?`)) return;
+          await bus.obsCall('SetCurrentProgramScene', { sceneName: k });
+        }
+        currentScene = k; renderScenes();
+      } catch (err) { toast(`No se pudo cambiar de escena: ${err.message}`, 'error'); }
+    });
+
+    // --- Overlay en escenas ---
+    $('btnRefreshScenes').addEventListener('click', () => {
+      if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
+      scanScenes();
+    });
+    $('btnAddToScene').addEventListener('click', () => addOverlayToScene($('addScene').value));
+    $('sceneList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]'); if (!btn) return;
+      const li = btn.closest('.scene-item');
+      if (btn.dataset.act === 'cfg') {
+        selectScene(li.dataset.key);
+        $('cardSeq').open = true;
+        $('cardStage').open = true;
+        $('cardSeq').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (btn.dataset.act === 'del') removeOverlay(li.dataset.scene, li.dataset.source, Number(li.dataset.item));
+    });
+
+    // --- Avanzado ---
+    $('urlIncludePass').addEventListener('change', (e) => { S.url.includePass = e.target.checked; save(); updateOverlayUrl(); });
+    $('urlDebug').addEventListener('change', (e) => { S.url.debug = e.target.checked; save(); updateOverlayUrl(); });
+    $('btnCopyUrl').addEventListener('click', async () => {
+      const input = $('overlayUrl');
+      try { await navigator.clipboard.writeText(input.value); }
+      catch (_) { input.select(); document.execCommand('copy'); }
+      toast('URL copiada', 'ok');
+    });
+    $('btnLinkOverlay').addEventListener('click', linkOverlay);
+    $('sourceName').addEventListener('change', (e) => { S.sourceName = e.target.value.trim(); save(); });
+    $('btnRefreshSource').addEventListener('click', async () => {
+      // Equivale al botón "Actualizar la caché de la página actual" de la fuente de navegador
+      if (!S.sourceName) return toast('Escribe el nombre exacto de la fuente de navegador', 'warn');
+      try {
+        await bus.obsCall('PressInputPropertiesButton', { inputName: S.sourceName, propertyName: 'refreshnocache' });
+        toast('Fuente refrescada', 'ok');
+      } catch (err) { toast(`No se pudo refrescar: ${err.message}`, 'error'); }
+    });
+    $('btnExport').addEventListener('click', () => {
+      const data = { ...clone(S), connection: { ...S.connection, password: '' } };   // no exporta la contraseña
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `logo-sequencer-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    $('btnImport').addEventListener('click', () => $('importPicker').click());
+    $('importPicker').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        if (!Array.isArray(data.logos) || !Array.isArray(data.phases)) throw new Error('formato no válido');
+        const keepPass = S.connection.password;
+        S = deepMerge(clone(DEFAULT_STATE), data);
+        if (!S.connection.password) S.connection.password = keepPass;
+        renderAll(); changed(); toast('Configuración importada', 'ok');
+      } catch (err) { toast(`Error al importar: ${err.message}`, 'error'); }
+    });
+    $('btnReset').addEventListener('click', () => {
+      if (!confirm('¿Borrar logos, fases y ajustes? (la conexión se mantiene)')) return;
+      const conn = S.connection;
+      S = clone(DEFAULT_STATE); S.connection = conn;
+      renderAll(); changed();
+    });
+
+    // --- Pie ---
+    $('autoSync').addEventListener('change', (e) => { S.autoSync = e.target.checked; save(); });
+    $('btnSend').addEventListener('click', () => sendConfig());
+  }
+
+  function renderAll() { renderForms(); renderStageTarget(); renderStage(); renderLogos(); renderPhases(); renderScenes(); }
+
+  /* ======================= Arranque ======================= */
+  renderAll();
+  bindEvents();
+  createBus();
+  if (S.connection.autoConnect) connect();
+  else $('cardConn').open = true;
+  requestAnimationFrame(tickProgress);
+})();
+</script>
+</body>
+</html>
