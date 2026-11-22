@@ -20,6 +20,21 @@ Show your sponsor, partner or brand logos in OBS as an automatic sequence, with 
   </tr>
 </table>
 
+**What your viewers see** — the overlay on top of your scenes, with its own logos and position in each one:
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/overlay-main.jpg" width="400" alt="Overlay in the Main scene: Sponsor A logo in the top-right corner"></td>
+    <td align="center"><img src="docs/images/overlay-gameplay.jpg" width="400" alt="Overlay in the Gameplay scene: smaller Partner B logo in the bottom-left corner"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>“Main” scene: default sequence, top-right</sub></td>
+    <td align="center"><sub>“Gameplay” scene: its own logos, smaller, bottom-left</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots with sample logos and illustrative backgrounds.</sub>
+
 ---
 
 ## Features

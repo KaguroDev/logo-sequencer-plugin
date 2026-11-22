@@ -20,6 +20,21 @@ Muestra los logos de tus patrocinadores, auspiciadores o marcas en OBS como una 
   </tr>
 </table>
 
+**Lo que ven tus espectadores**: el overlay sobre tus escenas, con sus propios logos y posición en cada una:
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/overlay-main.jpg" width="400" alt="Overlay en la escena Main: logo Sponsor A en la esquina superior derecha"></td>
+    <td align="center"><img src="docs/images/overlay-gameplay.jpg" width="400" alt="Overlay en la escena Gameplay: logo Partner B más pequeño en la esquina inferior izquierda"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Escena “Main”: secuencia por defecto, arriba a la derecha</sub></td>
+    <td align="center"><sub>Escena “Gameplay”: sus propios logos, más pequeños, abajo a la izquierda</sub></td>
+  </tr>
+</table>
+
+<sub>Capturas con logos de ejemplo y fondos ilustrativos.</sub>
+
 ---
 
 ## Características
