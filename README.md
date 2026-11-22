@@ -80,6 +80,8 @@ The plugin is installed for all users in `C:\ProgramData\obs-studio\plugins\logo
 
 You can also use **Tools → Logo Sequencer: create / update overlay** to create the overlay in the current scene.
 
+📖 **[Full user guide](docs/GUIDE.md)** — every section of the dock explained step by step.
+
 ### Different logos per scene
 
 In **Phase sequence**, the **Logos for** selector chooses which sequence you are editing:
@@ -164,7 +166,8 @@ The version is set in `buildspec.json`. Run `cmake --preset` again after changin
 | `installer/logo-sequencer.nsi` | NSIS installer script (English/Spanish) |
 | `installer/build-installer.ps1` | Builds the plugin and the installer in one step |
 | `buildspec.json` | Name, version and OBS version to build against |
-| `docs/images/` | Screenshots used in this README |
+| `docs/GUIDE.md`, `docs/GUIA.md` | User guide (English, Spanish) |
+| `docs/images/` | Screenshots used in the README and the guide |
 
 Based on the official [obs-plugintemplate](https://github.com/obsproject/obs-plugintemplate).
 

@@ -80,6 +80,8 @@ El plugin se instala para todos los usuarios en `C:\ProgramData\obs-studio\plugi
 
 También puedes usar **Herramientas → Logo Sequencer: crear / actualizar overlay** para crear el overlay en la escena actual.
 
+📖 **[Guía de uso completa](docs/GUIA.md)**: cada sección del dock explicada paso a paso.
+
 ### Logos distintos en cada escena
 
 En **Secuencia de fases**, el selector **Logos para** elige qué secuencia se edita:
@@ -169,7 +171,8 @@ Sin instalador: cierra OBS y, en una consola **como administrador**, ejecuta `cm
 | `installer/logo-sequencer.nsi` | Script del instalador NSIS (español/inglés) |
 | `installer/build-installer.ps1` | Compila el plugin y el instalador en un paso |
 | `buildspec.json` | Nombre, versión y versión de OBS contra la que se compila |
-| `docs/images/` | Capturas usadas en este documento |
+| `docs/GUIDE.md`, `docs/GUIA.md` | Guía de uso (inglés, español) |
+| `docs/images/` | Capturas usadas en este documento y en la guía |
 
 ### Traducciones
 
