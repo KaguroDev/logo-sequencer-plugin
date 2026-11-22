@@ -77,6 +77,52 @@
   <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js"></script>
   <script>
 /* ==========================================================================
+ * IDIOMA (English / Español) — ?lang=en|es (lo pone el plugin / el panel).
+ * Sin parámetro se usa el idioma del navegador. tr('texto en español', {x})
+ * devuelve la traducción de EN cuando el idioma es inglés.
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const param = new URLSearchParams(location.search).get('lang');
+  const LANG = /^es/i.test(param || navigator.language || 'es') ? 'es' : 'en';
+
+  const EN = {
+    'No se cargó la librería obs-websocket-js (¿sin internet?)': 'The obs-websocket-js library did not load (no internet?)',
+    'Conexión perdida ({code})': 'Connection lost ({code})',
+    'Contraseña incorrecta': 'Wrong password',
+    'No se pudo conectar': 'Could not connect',
+    'Reintentando conexión a OBS en {s} s…': 'Retrying connection to OBS in {s} s…',
+    'OBS no está conectado': 'OBS is not connected',
+    'Error al enviar a OBS: {m}': 'Error sending to OBS: {m}',
+    'tardó demasiado en cargar': 'took too long to load',
+    'no se pudo cargar': 'could not be loaded',
+    'Imagen "{n}" {err}': 'Image "{n}" {err}',
+    'No hay fases configuradas': 'No phases configured',
+    'overlay: iniciando…': 'overlay: starting…',
+    'canal': 'channel',
+    'escena': 'scene',
+    '(por defecto)': '(default)',
+    ' [propia]': ' [own]',
+    'estado': 'state',
+    'fase': 'phase',
+  };
+
+  function tr(text, vars) {
+    let s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN, text) ? EN[text] : text;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+    return s;
+  }
+
+  document.documentElement.lang = LANG;
+  const dbg = document.getElementById('debug');
+  if (dbg) dbg.textContent = tr('overlay: iniciando…');
+
+  global.LANG = LANG;
+  global.tr = tr;
+})(window);
+
+/* ==========================================================================
  * BUS DE COMUNICACIÓN — idéntico en Overlay_logo.html y Control_logo.html
  * --------------------------------------------------------------------------
  * Envía y recibe mensajes por DOS vías a la vez:
@@ -171,7 +217,7 @@
      */
     connectObs({ host = '127.0.0.1', port = 4455, password = '' } = {}) {
       if (typeof global.OBSWebSocket === 'undefined') {
-        this._setState('error', { message: 'No se cargó la librería obs-websocket-js (¿sin internet?)' });
+        this._setState('error', { message: tr('No se cargó la librería obs-websocket-js (¿sin internet?)') });
         return;
       }
       this.disconnectObs(true);
@@ -193,7 +239,7 @@
       obs.on('ConnectionClosed', (err) => {
         if (this.obs !== obs || this.obsState !== 'connected') return;  // solo conexiones ya establecidas
         if (this.manualClose) return this._setState('disconnected');
-        this._setState('error', { message: `Conexión perdida (${(err && err.code) || '?'})` });
+        this._setState('error', { message: tr('Conexión perdida ({code})', { code: (err && err.code) || '?' }) });
         this._scheduleReconnect();
       });
 
@@ -213,7 +259,8 @@
         // Código 4009 = autenticación fallida → reintentar despacio
         const authFail = err && (err.code === 4009 || /auth/i.test(err.message || ''));
         this._setState('error', {
-          message: authFail ? 'Contraseña incorrecta' : (err && err.message) || 'No se pudo conectar',
+          message: authFail ? tr('Contraseña incorrecta') : (err && err.message) || tr('No se pudo conectar'),
+          authFail,
           code: err && err.code,
         });
         if (!this.manualClose) this._scheduleReconnect(authFail ? RECONNECT_MAX : undefined);
@@ -223,7 +270,7 @@
     _scheduleReconnect(forceDelay) {
       clearTimeout(this.reconnectTimer);
       const delay = forceDelay || this.reconnectDelay;
-      this.onLog(`Reintentando conexión a OBS en ${Math.round(delay / 1000)} s…`, 'warn');
+      this.onLog(tr('Reintentando conexión a OBS en {s} s…', { s: Math.round(delay / 1000) }), 'warn');
       this._setState('reconnecting', { inMs: delay });
       this.reconnectTimer = setTimeout(() => this._openObs(), delay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX);
@@ -244,7 +291,7 @@
 
     /** Llamada directa a cualquier request de OBS (p. ej. refrescar una fuente). */
     async obsCall(request, data) {
-      if (!this.obsConnected) throw new Error('OBS no está conectado');
+      if (!this.obsConnected) throw new Error(tr('OBS no está conectado'));
       return this.obs.call(request, data);
     }
 
@@ -271,7 +318,7 @@
 
       if (this.obsConnected) {
         this.obs.call('BroadcastCustomEvent', { eventData: msg })
-          .catch((e) => this.onLog(`Error al enviar a OBS: ${e.message}`, 'error'));
+          .catch((e) => this.onLog(tr('Error al enviar a OBS: {m}', { m: e.message }), 'error'));
       }
       return msg;
     }
@@ -416,9 +463,9 @@
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.decoding = 'async';
-      const t = setTimeout(() => reject(new Error('tardó demasiado en cargar')), timeoutMs);
+      const t = setTimeout(() => reject(new Error(tr('tardó demasiado en cargar'))), timeoutMs);
       img.onload = () => { clearTimeout(t); resolve(img); };
-      img.onerror = () => { clearTimeout(t); reject(new Error('no se pudo cargar')); };
+      img.onerror = () => { clearTimeout(t); reject(new Error(tr('no se pudo cargar'))); };
       img.src = src;
     });
   }
@@ -438,7 +485,7 @@
     } catch (err) {
       if (token !== showToken) return;
       failStreak++;
-      report('error', { message: `Imagen "${phase.name || phase.src}" ${err.message}`, index: i });
+      report('error', { message: tr('Imagen "{n}" {err}', { n: phase.name || phase.src, err: err.message }), index: i });
       if (failStreak >= phases.length) { failStreak = 0; return stop(); }
       return showPhase(i + 1, { keepPaused });       // salta a la siguiente
     }
@@ -482,7 +529,7 @@
   }
 
   function play() {
-    if (!config || !config.phases.length) return report('error', { message: 'No hay fases configuradas' });
+    if (!config || !config.phases.length) return report('error', { message: tr('No hay fases configuradas') });
     if (state === 'paused' && currentLayer) { state = 'playing'; startTimer(); return sendStatus(); }
     if (state === 'playing') return;
     const from = (state === 'finished' || index < 0) ? 0 : index;
@@ -570,9 +617,9 @@
     if (!DEBUG) return;
     const phase = config && config.phases[index];
     debugEl.textContent =
-      `OBS: ${obsState} · ${CONN.host}:${CONN.port} · canal: ${CONN.channel}` +
-      ` · escena: ${SCENE || '(por defecto)'}${SCENE && config && config.sceneStages && config.sceneStages[SCENE] ? ' [propia]' : ''}\n` +
-      `estado: ${state} · fase ${index + 1}/${config ? config.phases.length : 0}` +
+      `OBS: ${obsState} · ${CONN.host}:${CONN.port} · ${tr('canal')}: ${CONN.channel}` +
+      ` · ${tr('escena')}: ${SCENE || tr('(por defecto)')}${SCENE && config && config.sceneStages && config.sceneStages[SCENE] ? tr(' [propia]') : ''}\n` +
+      `${tr('estado')}: ${state} · ${tr('fase')} ${index + 1}/${config ? config.phases.length : 0}` +
       (phase ? ` · ${phase.name}` : '');
   }
 

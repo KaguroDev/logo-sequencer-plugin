@@ -215,8 +215,8 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
           <button type="button" class="btn shrink" id="btnAddToScene"><svg><use href="#i-plus"/></svg>Agregar overlay</button>
         </div>
         <ul class="scene-list" id="sceneList"></ul>
-        <p class="hint"><b>Vincular overlay</b> actualiza todas las fuentes de navegador que usan <code>Overlay_logo.html</code> (modo URL con IP, puerto, contraseña, canal y escena). Si no hay ninguna, la crea en la escena actual.</p>
-        <p class="hint"><b>Agregar overlay</b> crea una fuente propia en la escena elegida. Cada escena puede tener sus propios logos (<b>Secuencia de fases</b>) y su propia posición y tamaño (<b>Tamaño y escala</b>); <b>Configurar</b> elige la escena en ambas. Los controles Iniciar, Pausar, etc. afectan a todas a la vez.</p>
+        <p class="hint" data-i18n-html="hintLink"><b>Vincular overlay</b> actualiza todas las fuentes de navegador que usan <code>Overlay_logo.html</code> (modo URL con IP, puerto, contraseña, canal y escena). Si no hay ninguna, la crea en la escena actual.</p>
+        <p class="hint" data-i18n-html="hintAdd"><b>Agregar overlay</b> crea una fuente propia en la escena elegida. Cada escena puede tener sus propios logos (<b>Secuencia de fases</b>) y su propia posición y tamaño (<b>Tamaño y escala</b>); <b>Configurar</b> elige la escena en ambas. Los controles Iniciar, Pausar, etc. afectan a todas a la vez.</p>
       </div>
     </details>
 
@@ -243,7 +243,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
           <button type="submit" class="btn primary" id="btnConnect">Conectar</button>
           <button type="button" class="btn" id="btnDisconnect">Desconectar</button>
         </div>
-        <p class="hint">El <b>canal</b> debe coincidir con el <code>?channel=</code> del overlay. Úsalo para controlar varios overlays por separado.</p>
+        <p class="hint" data-i18n-html="hintChannel">El <b>canal</b> debe coincidir con el <code>?channel=</code> del overlay. Úsalo para controlar varios overlays por separado.</p>
         <div class="log" id="log"></div>
       </form>
     </details>
@@ -261,7 +261,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
           <button class="btn" id="btnPickFile">Desde archivo…</button>
           <input type="file" id="filePicker" accept="image/*" multiple hidden>
         </div>
-        <p class="hint">Rutas como <code>C:\logos\a.png</code> se convierten a <code>file:///C:/logos/a.png</code>. Para que el overlay pueda leerlas, la fuente debe usar una URL <code>file:///</code> (lo deja así "Vincular overlay en OBS"). "Desde archivo" incrusta la imagen (data URL): cómodo, pero úsalo con imágenes livianas.</p>
+        <p class="hint" data-i18n-html="hintPaths">Rutas como <code>C:\logos\a.png</code> se convierten a <code>file:///C:/logos/a.png</code>. Para que el overlay pueda leerlas, la fuente debe usar una URL <code>file:///</code> (lo deja así "Vincular overlay en OBS"). "Desde archivo" incrusta la imagen (data URL): cómodo, pero úsalo con imágenes livianas.</p>
         <ul class="logo-list dropzone" id="logoList"></ul>
       </div>
     </details>
@@ -393,6 +393,280 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.6/dist/obs-ws.global.js"></script>
   <script>
 /* ==========================================================================
+ * IDIOMA (English / Español)
+ * --------------------------------------------------------------------------
+ * El plugin abre esta página con ?lang=en|es (el idioma elegido al instalar).
+ * Sin ese parámetro se usa el idioma del navegador.
+ * Los textos están escritos en español en el código; tr('texto') devuelve la
+ * traducción de EN cuando el idioma es inglés. {nombre} se reemplaza por
+ * tr('… {nombre} …', {nombre: valor}). translateDom() traduce el HTML
+ * estático (textos, title, placeholder, aria-label y data-i18n-html).
+ * ========================================================================== */
+(function (global) {
+  'use strict';
+
+  const param = new URLSearchParams(location.search).get('lang');
+  const LANG = /^es/i.test(param || navigator.language || 'es') ? 'es' : 'en';
+
+  const EN = {
+    // --- Cabecera y transporte ---
+    'Sin conexión': 'Disconnected',
+    'Detenido': 'Stopped',
+    'Overlay sin respuesta todavía': 'No response from the overlay yet',
+    'Reproducción': 'Playback',
+    'Logo anterior': 'Previous logo',
+    'Iniciar secuencia': 'Start sequence',
+    'Siguiente logo': 'Next logo',
+    'Anterior': 'Previous',
+    'Iniciar': 'Start',
+    'Pausar': 'Pause',
+    'Siguiente': 'Next',
+    // --- Overlay en escenas ---
+    'Overlay en escenas': 'Overlay in scenes',
+    'Vincular overlay en OBS': 'Link overlay in OBS',
+    'Volver a leer las escenas de OBS': 'Re-read the scenes from OBS',
+    '↻ Actualizar': '↻ Refresh',
+    'Escena': 'Scene',
+    '(conecta a OBS)': '(connect to OBS)',
+    'Agregar overlay': 'Add overlay',
+    // --- Conexión ---
+    'Conexión OBS': 'OBS connection',
+    'Puerto': 'Port',
+    'Contraseña': 'Password',
+    '(vacía si no hay autenticación)': '(empty if authentication is off)',
+    'Canal': 'Channel',
+    'Mostrar': 'Show',
+    'Conectar al abrir': 'Connect on open',
+    'Conectar': 'Connect',
+    'Desconectar': 'Disconnect',
+    // --- Biblioteca ---
+    'Biblioteca de logos': 'Logo library',
+    'Nombre': 'Name',
+    'Patrocinador A': 'Sponsor A',
+    'URL o ruta local': 'URL or local path',
+    'https://… o C:\\logos\\logo.png': 'https://… or C:\\logos\\logo.png',
+    'Añadir': 'Add',
+    'Desde archivo…': 'From file…',
+    // --- Secuencia ---
+    'Secuencia de fases': 'Phase sequence',
+    'Logos para': 'Logos for',
+    'Marcado: esta escena muestra la secuencia por defecto': 'Checked: this scene shows the default sequence',
+    'Usar los mismos logos que por defecto': 'Use the same logos as the default',
+    'Duración por defecto': 'Default duration',
+    'Unidad': 'Unit',
+    'segundos': 'seconds',
+    'milisegundos': 'milliseconds',
+    'Transición': 'Transition',
+    'Duración transición (ms)': 'Transition duration (ms)',
+    'Al terminar': 'When finished',
+    'Repetir en bucle': 'Loop',
+    'Mantener último logo': 'Hold last logo',
+    'Ocultar': 'Hide',
+    'Añadir todos los logos': 'Add all logos',
+    'Aplicar valores por defecto a todas': 'Apply defaults to all',
+    'Vaciar': 'Clear',
+    'Arrastra ⠿ para reordenar': 'Drag ⠿ to reorder',
+    // --- Tamaño y escala ---
+    'Tamaño y escala': 'Size and scale',
+    'Configurar para': 'Configure for',
+    'Cambia a esta escena en OBS (en Modo Estudio, en la vista previa) para ver los cambios': 'Switches OBS to this scene (in Studio Mode, in the preview) to see the changes',
+    'Ver en OBS': 'Show in OBS',
+    'Si está desmarcado, esta escena usa la configuración por defecto': 'If unchecked, this scene uses the default settings',
+    'Posición y tamaño propios en esta escena': 'Own position and size in this scene',
+    'Ancho (px)': 'Width (px)',
+    'Alto (px)': 'Height (px)',
+    'Ajuste': 'Fit',
+    'Contener (sin recorte)': 'Contain (no crop)',
+    'Cubrir (recorta)': 'Cover (crops)',
+    'Estirar': 'Stretch',
+    'Escala global:': 'Global scale:',
+    'Posición en el lienzo': 'Position on canvas',
+    'Desplaz. X (px)': 'Offset X (px)',
+    'Desplaz. Y (px)': 'Offset Y (px)',
+    // --- Avanzado y pie ---
+    'Avanzado': 'Advanced',
+    'URL del overlay (para la Fuente de navegador)': 'Overlay URL (for the Browser Source)',
+    'Incluir contraseña': 'Include password',
+    'Modo debug': 'Debug mode',
+    'Copiar': 'Copy',
+    'Nombre de la fuente del overlay en OBS': 'Overlay source name in OBS',
+    'Refrescar fuente': 'Refresh source',
+    'Exportar JSON': 'Export JSON',
+    'Importar JSON': 'Import JSON',
+    'Restablecer': 'Reset',
+    'Sincronizar al editar': 'Sync while editing',
+    'Enviar configuración': 'Send settings',
+
+    // --- Conexión con OBS (bus) ---
+    'No se cargó la librería obs-websocket-js (¿sin internet?)': 'The obs-websocket-js library did not load (no internet?)',
+    'Conexión perdida ({code})': 'Connection lost ({code})',
+    'Contraseña incorrecta': 'Wrong password',
+    'No se pudo conectar': 'Could not connect',
+    'Reintentando conexión a OBS en {s} s…': 'Retrying connection to OBS in {s} s…',
+    'OBS no está conectado': 'OBS is not connected',
+    'Error al enviar a OBS: {m}': 'Error sending to OBS: {m}',
+
+    // --- Panel: mensajes dinámicos ---
+    'Fundido (fade)': 'Fade',
+    'Deslizar ←': 'Slide ←',
+    'Deslizar →': 'Slide →',
+    'Deslizar ↑': 'Slide ↑',
+    'Desenfoque': 'Blur',
+    'Corte (sin transición)': 'Cut (no transition)',
+    'Imagen': 'Image',
+    '«{k}»': '“{k}”',
+    'la secuencia de «{k}»': 'the sequence of “{k}”',
+    'la secuencia por defecto': 'the default sequence',
+    'No se pudo guardar (¿demasiadas imágenes incrustadas?)': 'Could not save (too many embedded images?)',
+    'Configuración enviada ({n} fases)': 'Settings sent ({n} phases)',
+    ' — OBS sin conexión, solo vía local': ' — OBS not connected, local only',
+    'La configuración es muy pesada; usa URLs/rutas en vez de imágenes incrustadas': 'The settings are very large; use URLs/paths instead of embedded images',
+    'Overlay detectado, enviando configuración': 'Overlay detected, sending settings',
+    'OBS conectado': 'OBS connected',
+    'Conectando…': 'Connecting…',
+    'Reconectando…': 'Reconnecting…',
+    'Overlay sin respuesta · pulsa “Vincular overlay en OBS”': 'No response from the overlay · press “Link overlay in OBS”',
+    'El overlay no responde. Usa "Vincular overlay en OBS" para configurarlo.': 'The overlay is not responding. Use "Link overlay in OBS" to set it up.',
+    'Conectado a {url}': 'Connected to {url}',
+    'Conectado a OBS': 'Connected to OBS',
+    'Contraseña de OBS WebSocket incorrecta': 'Wrong OBS WebSocket password',
+    'Conectando a ws://{host}:{port} (canal "{ch}")…': 'Connecting to ws://{host}:{port} (channel "{ch}")…',
+    'Reproduciendo': 'Playing',
+    'En pausa': 'Paused',
+    'Finalizado': 'Finished',
+    '{state} · fase {i} de {n}{where}': '{state} · phase {i} of {n}{where}',
+    '{state} · {n} fases en el overlay{where}': '{state} · {n} phases in the overlay{where}',
+    'Añade logos por URL, ruta local o arrastra imágenes aquí.': 'Add logos by URL or local path, or drag images here.',
+    '(imagen incrustada)': '(embedded image)',
+    'URL o ruta': 'URL or path',
+    'Añadir a la secuencia': 'Add to sequence',
+    'Eliminar': 'Delete',
+    'Indica una URL o ruta': 'Enter a URL or path',
+    '{name} pesa {mb} MB; mejor usa una ruta local': '{name} is {mb} MB; better use a local path',
+    'por defecto': 'default',
+    ' = por defecto': ' = default',
+    'Sin fases. Usa “+” en un logo o “Añadir todos los logos”.': 'No phases. Use “+” on a logo or “Add all logos”.',
+    '(sin logos)': '(no logos)',
+    'Arrastrar para reordenar': 'Drag to reorder',
+    'Mostrar ahora': 'Show now',
+    'Subir': 'Move up',
+    'Bajar': 'Move down',
+    'Duplicar': 'Duplicate',
+    'Duración ({u})': 'Duration ({u})',
+    'Escala': 'Scale',
+    'Incluir en la secuencia': 'Include in the sequence',
+    'Activa': 'Active',
+    '{n} activas · ciclo de {t}': '{n} active · {t} cycle',
+    'No se pudieron leer las escenas: {m}': 'Could not read the scenes: {m}',
+    'Conecta el panel a OBS para ver las escenas.': 'Connect the panel to OBS to see the scenes.',
+    '{a} de {b}': '{a} of {b}',
+    ' (ya tiene)': ' (already has it)',
+    ' · actual': ' · current',
+    '· actual': '· current',
+    '(sin escenas)': '(no scenes)',
+    'Ninguna escena tiene el overlay. Elige una arriba y pulsa “Agregar overlay”.': 'No scene has the overlay. Pick one above and press “Add overlay”.',
+    ' · sin escena: pulsa “Vincular”': ' · no scene: press “Link”',
+    ' · usa la posición de «{k}»': ' · uses the position of “{k}”',
+    'posición propia': 'own position',
+    'posición por defecto': 'default position',
+    'logos propios': 'own logos',
+    'logos por defecto': 'default logos',
+    'Configurar logos, posición y tamaño de esta escena': "Configure this scene's logos, position and size",
+    'Configurar': 'Configure',
+    'Quitar el overlay de esta escena': 'Remove the overlay from this scene',
+    '{k} (sin overlay)': '{k} (no overlay)',
+    'Por defecto (escenas sin posición propia)': 'Default (scenes without their own position)',
+    ' · usa por defecto': ' · uses default',
+    ' · logos propios': ' · own logos',
+    'Se aplica a: {list} y a los overlays sin escena.': 'Applies to: {list} and overlays without a scene.',
+    'Se aplica a las escenas que no tienen posición propia.': 'Applies to scenes without their own position.',
+    'Los cambios solo afectan a la escena «{k}».': 'Changes only affect scene “{k}”.',
+    '«{k}» usa la configuración por defecto (abajo). Si cambias un valor, la escena pasa a tener su posición propia.': '“{k}” uses the default settings (below). If you change a value, the scene gets its own position.',
+    'Por defecto (escenas sin logos propios)': 'Default (scenes without their own logos)',
+    'La usan: {list} y los overlays sin escena.': 'Used by: {list} and overlays without a scene.',
+    'La usan las escenas que no tienen logos propios.': 'Used by scenes without their own logos.',
+    '«{k}» muestra la secuencia por defecto (abajo, solo lectura). Desmarca la casilla para elegir sus propios logos.': '“{k}” shows the default sequence (below, read-only). Uncheck the box to pick its own logos.',
+    '«{k}» tiene sus propios logos: los cambios de abajo solo afectan a esta escena.': '“{k}” has its own logos: changes below only affect this scene.',
+    'Primero conecta el panel a OBS': 'Connect the panel to OBS first',
+    'Elige una escena': 'Choose a scene',
+    'La escena "{s}" ya tiene el overlay': 'Scene "{s}" already has the overlay',
+    'Fuente "{n}" creada en la escena "{s}"': 'Source "{n}" created in scene "{s}"',
+    'Overlay agregado a "{s}"': 'Overlay added to "{s}"',
+    'No se pudo agregar el overlay: {m}': 'Could not add the overlay: {m}',
+    'No se pudo agregar: {m}': 'Could not add: {m}',
+    '¿Quitar el overlay "{src}" de la escena "{s}"?': 'Remove overlay "{src}" from scene "{s}"?',
+    'Overlay quitado de "{s}"': 'Overlay removed from "{s}"',
+    'No se pudo quitar: {m}': 'Could not remove: {m}',
+    'Overlay vinculado: {list}': 'Overlay linked: {list}',
+    'Overlay vinculado ({n} fuente)': 'Overlay linked ({n} source)',
+    'Overlay vinculado ({n} fuentes)': 'Overlay linked ({n} sources)',
+    'No se pudo vincular el overlay: {m}': 'Could not link the overlay: {m}',
+    'No se pudo vincular: {m}': 'Could not link: {m}',
+    'Desconectado manualmente': 'Disconnected manually',
+    'Añadido a {label}': 'Added to {label}',
+    'Este logo se usa en {n} fase(s) (todas las escenas). ¿Eliminarlo junto con esas fases?': 'This logo is used in {n} phase(s) (all scenes). Delete it along with those phases?',
+    'La biblioteca está vacía': 'The library is empty',
+    'Valores aplicados a todas las fases': 'Values applied to all phases',
+    '¿Eliminar todas las fases de {label}?': 'Delete all phases of {label}?',
+    '«{k}» ahora tiene sus propios logos': '“{k}” now has its own logos',
+    '¿Descartar los logos propios de «{k}»? Volverá a mostrar la secuencia por defecto.': 'Discard the logos of “{k}”? It will show the default sequence again.',
+    'La fase está desactivada o sin imagen': 'The phase is disabled or has no image',
+    '¿Quitar la posición propia de «{k}»? Volverá a usar la configuración por defecto.': 'Remove the own position of “{k}”? It will use the default settings again.',
+    'Esto cambia la escena en vivo (programa) a «{k}». ¿Continuar?': 'This switches the live (program) scene to “{k}”. Continue?',
+    'No se pudo cambiar de escena: {m}': 'Could not switch scene: {m}',
+    'URL copiada': 'URL copied',
+    'Escribe el nombre exacto de la fuente de navegador': 'Type the exact name of the browser source',
+    'Fuente refrescada': 'Source refreshed',
+    'No se pudo refrescar: {m}': 'Could not refresh: {m}',
+    'formato no válido': 'invalid format',
+    'Configuración importada': 'Settings imported',
+    'Error al importar: {m}': 'Import error: {m}',
+    '¿Borrar logos, fases y ajustes? (la conexión se mantiene)': 'Delete logos, phases and settings? (the connection is kept)',
+  };
+
+  /* Párrafos con formato (data-i18n-html="clave") */
+  const EN_HTML = {
+    hintLink: '<b>Link overlay</b> updates every browser source that uses <code>Overlay_logo.html</code> (URL mode with IP, port, password, channel and scene). If there is none, it creates one in the current scene.',
+    hintAdd: '<b>Add overlay</b> creates a dedicated source in the chosen scene. Each scene can have its own logos (<b>Phase sequence</b>) and its own position and size (<b>Size and scale</b>); <b>Configure</b> selects the scene in both. Start, Pause, etc. affect all of them at once.',
+    hintChannel: "The <b>channel</b> must match the overlay's <code>?channel=</code>. Use it to control several overlays separately.",
+    hintPaths: 'Paths like <code>C:\\logos\\a.png</code> are converted to <code>file:///C:/logos/a.png</code>. For the overlay to read them, the source must use a <code>file:///</code> URL ("Link overlay in OBS" sets it up that way). "From file" embeds the image (data URL): handy, but use it only with lightweight images.',
+  };
+
+  function tr(text, vars) {
+    let s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN, text) ? EN[text] : text;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+    return s;
+  }
+
+  function translateDom(root = document.body) {
+    document.documentElement.lang = LANG;
+    if (LANG !== 'en') return;
+    const has = (k) => Object.prototype.hasOwnProperty.call(EN, k);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentNode && /^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const key = n.nodeValue.trim();
+      if (key && has(key)) n.nodeValue = n.nodeValue.replace(key, () => EN[key]);
+    }
+    root.querySelectorAll('[title], [placeholder], [aria-label]').forEach((el) => {
+      for (const a of ['title', 'placeholder', 'aria-label']) {
+        const v = el.getAttribute(a);
+        if (v && has(v)) el.setAttribute(a, EN[v]);
+      }
+    });
+    root.querySelectorAll('[data-i18n-html]').forEach((el) => {
+      const html = EN_HTML[el.dataset.i18nHtml];
+      if (html) el.innerHTML = html;
+    });
+  }
+
+  global.LANG = LANG;
+  global.tr = tr;
+  global.translateDom = translateDom;
+})(window);
+
+/* ==========================================================================
  * BUS DE COMUNICACIÓN — idéntico en Overlay_logo.html y Control_logo.html
  * --------------------------------------------------------------------------
  * Envía y recibe mensajes por DOS vías a la vez:
@@ -487,7 +761,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
      */
     connectObs({ host = '127.0.0.1', port = 4455, password = '' } = {}) {
       if (typeof global.OBSWebSocket === 'undefined') {
-        this._setState('error', { message: 'No se cargó la librería obs-websocket-js (¿sin internet?)' });
+        this._setState('error', { message: tr('No se cargó la librería obs-websocket-js (¿sin internet?)') });
         return;
       }
       this.disconnectObs(true);
@@ -509,7 +783,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       obs.on('ConnectionClosed', (err) => {
         if (this.obs !== obs || this.obsState !== 'connected') return;  // solo conexiones ya establecidas
         if (this.manualClose) return this._setState('disconnected');
-        this._setState('error', { message: `Conexión perdida (${(err && err.code) || '?'})` });
+        this._setState('error', { message: tr('Conexión perdida ({code})', { code: (err && err.code) || '?' }) });
         this._scheduleReconnect();
       });
 
@@ -529,7 +803,8 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
         // Código 4009 = autenticación fallida → reintentar despacio
         const authFail = err && (err.code === 4009 || /auth/i.test(err.message || ''));
         this._setState('error', {
-          message: authFail ? 'Contraseña incorrecta' : (err && err.message) || 'No se pudo conectar',
+          message: authFail ? tr('Contraseña incorrecta') : (err && err.message) || tr('No se pudo conectar'),
+          authFail,
           code: err && err.code,
         });
         if (!this.manualClose) this._scheduleReconnect(authFail ? RECONNECT_MAX : undefined);
@@ -539,7 +814,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     _scheduleReconnect(forceDelay) {
       clearTimeout(this.reconnectTimer);
       const delay = forceDelay || this.reconnectDelay;
-      this.onLog(`Reintentando conexión a OBS en ${Math.round(delay / 1000)} s…`, 'warn');
+      this.onLog(tr('Reintentando conexión a OBS en {s} s…', { s: Math.round(delay / 1000) }), 'warn');
       this._setState('reconnecting', { inMs: delay });
       this.reconnectTimer = setTimeout(() => this._openObs(), delay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX);
@@ -560,7 +835,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
 
     /** Llamada directa a cualquier request de OBS (p. ej. refrescar una fuente). */
     async obsCall(request, data) {
-      if (!this.obsConnected) throw new Error('OBS no está conectado');
+      if (!this.obsConnected) throw new Error(tr('OBS no está conectado'));
       return this.obs.call(request, data);
     }
 
@@ -587,7 +862,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
 
       if (this.obsConnected) {
         this.obs.call('BroadcastCustomEvent', { eventData: msg })
-          .catch((e) => this.onLog(`Error al enviar a OBS: ${e.message}`, 'error'));
+          .catch((e) => this.onLog(tr('Error al enviar a OBS: {m}', { m: e.message }), 'error'));
       }
       return msg;
     }
@@ -629,7 +904,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   const TRANSITIONS = [
     ['fade', 'Fundido (fade)'], ['slide-left', 'Deslizar ←'], ['slide-right', 'Deslizar →'],
     ['slide-up', 'Deslizar ↑'], ['zoom', 'Zoom'], ['blur', 'Desenfoque'], ['cut', 'Corte (sin transición)'],
-  ];
+  ].map(([v, l]) => [v, tr(l)]);
   const PRESETS = [[300, 150], [400, 200], [600, 300], [800, 400], [500, 500], [1280, 720], [1920, 1080]];
   const ANCHORS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
 
@@ -700,7 +975,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
-      catch (e) { toast('No se pudo guardar (¿demasiadas imágenes incrustadas?)', 'error'); }
+      catch (e) { toast(tr('No se pudo guardar (¿demasiadas imágenes incrustadas?)'), 'error'); }
     }, 200);
   }
   /** Tras cualquier cambio de datos: guarda y (si está activo) sincroniza con el overlay. */
@@ -728,7 +1003,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     return src;
   }
   const nameFromSrc = (src) => {
-    if (src.startsWith('data:')) return 'Imagen';
+    if (src.startsWith('data:')) return tr('Imagen');
     let last = src.split(/[\\/]/).pop() || 'Logo';
     try { last = decodeURIComponent(last); } catch (_) {}
     return last.replace(/[?#].*$/, '').replace(/\.[a-z0-9]+$/i, '').slice(0, 40) || 'Logo';
@@ -737,7 +1012,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   /* Secuencia que se edita: la de la escena elegida (si tiene logos propios) o la por defecto. */
   const seqLocked = () => !!S.seqScene && !S.scenePhases[S.seqScene];   // escena que usa los logos por defecto
   const seq = () => (S.seqScene && S.scenePhases[S.seqScene]) || S.phases;
-  const seqLabel = () => (S.seqScene && S.scenePhases[S.seqScene] ? `la secuencia de «${S.seqScene}»` : 'la secuencia por defecto');
+  const seqLabel = () => (S.seqScene && S.scenePhases[S.seqScene] ? tr('la secuencia de «{k}»', { k: S.seqScene }) : tr('la secuencia por defecto'));
   const allSeqs = () => [S.phases, ...Object.values(S.scenePhases)];
   const findPhase = (id) => { for (const l of allSeqs()) { const p = l.find((x) => x.id === id); if (p) return p; } return null; };
   const activeOf = (list) => list.filter((p) => p.enabled !== false && logoById(p.logoId) && logoById(p.logoId).src);
@@ -784,8 +1059,8 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     if (!bus) return;
     const config = buildConfig();
     bus.send('config', { config, autoplay });
-    if (!silent) toast(`Configuración enviada (${config.phases.length} fases)${bus.obsConnected ? '' : ' — OBS sin conexión, solo vía local'}`, bus.obsConnected ? 'ok' : 'warn');
-    if (JSON.stringify(config).length > 4000000) toast('La configuración es muy pesada; usa URLs/rutas en vez de imágenes incrustadas', 'warn');
+    if (!silent) toast(tr('Configuración enviada ({n} fases)', { n: config.phases.length }) + (bus.obsConnected ? '' : tr(' — OBS sin conexión, solo vía local')), bus.obsConnected ? 'ok' : 'warn');
+    if (JSON.stringify(config).length > 4000000) toast(tr('La configuración es muy pesada; usa URLs/rutas en vez de imágenes incrustadas'), 'warn');
   }
 
   function command(cmd, payload) {
@@ -803,7 +1078,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
         if (msg.role !== 'overlay') return;
         switch (msg.type) {
           case 'hello':                         // un overlay acaba de cargarse/conectarse
-            log('Overlay detectado, enviando configuración', 'ok');
+            log(tr('Overlay detectado, enviando configuración'), 'ok');
             sendConfig(false, true);
             break;
           case 'status': {
@@ -823,26 +1098,26 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       },
       onState(state, info) {
         $('connPill').dataset.state = state;
-        const texts = { connected: 'OBS conectado', connecting: 'Conectando…', reconnecting: 'Reconectando…', error: 'Error', disconnected: 'Sin conexión' };
+        const texts = { connected: tr('OBS conectado'), connecting: tr('Conectando…'), reconnecting: tr('Reconectando…'), error: 'Error', disconnected: tr('Sin conexión') };
         $('connText').textContent = texts[state] || state;
         if (state === 'connected') {
           setTimeout(() => {
             if (!overlayStatus) {
-              $('nowSub').textContent = 'Overlay sin respuesta · pulsa “Vincular overlay en OBS”';
+              $('nowSub').textContent = tr('Overlay sin respuesta · pulsa “Vincular overlay en OBS”');
               $('cardScenes').open = true;
-              log('El overlay no responde. Usa "Vincular overlay en OBS" para configurarlo.', 'warn');
+              log(tr('El overlay no responde. Usa "Vincular overlay en OBS" para configurarlo.'), 'warn');
             }
           }, 4000);
           const v = info.version || {};
           $('obsVersion').textContent = v.obsVersion ? `OBS ${v.obsVersion} · WS ${v.obsWebSocketVersion}` : '';
-          log(`Conectado a ${info.url}`, 'ok');
-          toast('Conectado a OBS', 'ok');
+          log(tr('Conectado a {url}', { url: info.url }), 'ok');
+          toast(tr('Conectado a OBS'), 'ok');
           bus.send('hello', {});              // pide estado al overlay
           sendConfig(false, true);
           scanScenes();
         } else if (state === 'error') {
           log(info.message, 'error');
-          if (info.message === 'Contraseña incorrecta') { $('cardConn').open = true; toast('Contraseña de OBS WebSocket incorrecta', 'error'); }
+          if (info.authFail) { $('cardConn').open = true; toast(tr('Contraseña de OBS WebSocket incorrecta'), 'error'); }
         } else if (state === 'disconnected') {
           $('obsVersion').textContent = '';
           obsScenes = null; renderScenes(); renderStageTarget();
@@ -856,7 +1131,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   function connect() {
     const c = S.connection;
     if (!bus || bus.channel !== (c.channel || 'default')) createBus();
-    log(`Conectando a ws://${c.host}:${c.port} (canal "${c.channel}")…`);
+    log(tr('Conectando a ws://{host}:{port} (canal "{ch}")…', { host: c.host, port: c.port, ch: c.channel }));
     bus.connectObs({ host: c.host, port: c.port, password: c.password });
   }
 
@@ -864,14 +1139,14 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   function renderStatus() {
     const st = overlayStatus;
     if (!st) return;
-    const labels = { playing: 'Reproduciendo', paused: 'En pausa', stopped: 'Detenido', finished: 'Finalizado' };
+    const labels = { playing: tr('Reproduciendo'), paused: tr('En pausa'), stopped: tr('Detenido'), finished: tr('Finalizado') };
     const current = st.index < 0 ? null : st.phaseId ? findPhase(st.phaseId) : activePhases()[st.index];
     const logo = current && logoById(current.logoId);
     const where = st.scene ? ` · ${st.scene}` : '';
     $('nowTitle').textContent = st.name || labels[st.state] || '—';
     $('nowSub').textContent = st.index >= 0
-      ? `${labels[st.state]} · fase ${st.index + 1} de ${st.total}${where}`
-      : `${labels[st.state] || st.state} · ${st.total} fases en el overlay${where}`;
+      ? tr('{state} · fase {i} de {n}{where}', { state: labels[st.state], i: st.index + 1, n: st.total, where })
+      : tr('{state} · {n} fases en el overlay{where}', { state: labels[st.state] || st.state, n: st.total, where });
     $('nowThumb').style.backgroundImage = logo ? `url("${logo.src.replace(/"/g, '%22')}")` : '';
     document.querySelector('[data-cmd="play"]').classList.toggle('active', st.state === 'playing');
     document.querySelector('[data-cmd="pause"]').classList.toggle('active', st.state === 'paused');
@@ -899,7 +1174,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const list = $('logoList');
     $('libCount').textContent = S.logos.length || '';
     if (!S.logos.length) {
-      list.innerHTML = '<li class="empty">Añade logos por URL, ruta local o arrastra imágenes aquí.</li>';
+      list.innerHTML = `<li class="empty">${tr('Añade logos por URL, ruta local o arrastra imágenes aquí.')}</li>`;
       return;
     }
     list.innerHTML = S.logos.map((l) => {
@@ -908,12 +1183,12 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       <li class="logo-item" data-id="${l.id}">
         ${thumbHTML(l.src)}
         <div class="logo-meta">
-          <input type="text" data-field="name" value="${esc(l.name)}" title="Nombre">
-          <input type="text" class="src" data-field="src" value="${esc(embedded ? '(imagen incrustada)' : l.src)}" ${embedded ? 'readonly' : ''} title="URL o ruta">
+          <input type="text" data-field="name" value="${esc(l.name)}" title="${tr('Nombre')}">
+          <input type="text" class="src" data-field="src" value="${esc(embedded ? tr('(imagen incrustada)') : l.src)}" ${embedded ? 'readonly' : ''} title="${tr('URL o ruta')}">
         </div>
         <div class="item-actions">
-          <button class="btn ghost" data-act="to-seq" title="Añadir a la secuencia"><svg><use href="#i-plus"/></svg></button>
-          <button class="btn ghost danger" data-act="del" title="Eliminar"><svg><use href="#i-trash"/></svg></button>
+          <button class="btn ghost" data-act="to-seq" title="${tr('Añadir a la secuencia')}"><svg><use href="#i-plus"/></svg></button>
+          <button class="btn ghost danger" data-act="del" title="${tr('Eliminar')}"><svg><use href="#i-trash"/></svg></button>
         </div>
       </li>`;
     }).join('');
@@ -921,7 +1196,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
 
   function addLogo(src, name) {
     src = normalizeSrc(src);
-    if (!src) { toast('Indica una URL o ruta', 'warn'); return null; }
+    if (!src) { toast(tr('Indica una URL o ruta'), 'warn'); return null; }
     const logo = { id: uid(), name: (name || '').trim() || nameFromSrc(src), src };
     S.logos.push(logo);
     renderLogos();
@@ -932,7 +1207,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
 
   function readFiles(files) {
     [...files].filter((f) => f.type.startsWith('image/')).forEach((f) => {
-      if (f.size > 1500000) toast(`${f.name} pesa ${(f.size / 1e6).toFixed(1)} MB; mejor usa una ruta local`, 'warn');
+      if (f.size > 1500000) toast(tr('{name} pesa {mb} MB; mejor usa una ruta local', { name: f.name, mb: (f.size / 1e6).toFixed(1) }), 'warn');
       const r = new FileReader();
       r.onload = () => addLogo(r.result, f.name.replace(/\.[^.]+$/, ''));
       r.readAsDataURL(f);
@@ -944,39 +1219,39 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const list = $('phaseList');
     const phases = seq();
     const editable = !seqLocked();
-    $('seqCount').textContent = `${phases.length || ''} ${S.seqScene ? `«${S.seqScene}»${editable ? '' : ' = por defecto'}` : 'por defecto'}`.trim();
+    $('seqCount').textContent = `${phases.length || ''} ${S.seqScene ? tr('«{k}»', { k: S.seqScene }) + (editable ? '' : tr(' = por defecto')) : tr('por defecto')}`.trim();
     if (!phases.length) {
-      list.innerHTML = '<li class="empty">Sin fases. Usa “+” en un logo o “Añadir todos los logos”.</li>';
+      list.innerHTML = `<li class="empty">${tr('Sin fases. Usa “+” en un logo o “Añadir todos los logos”.')}</li>`;
       renderSummary();
       return;
     }
     const stepAttr = S.durationUnit === 's' ? '0.25' : '50';
     const logoOptions = (sel) => S.logos.map((l) => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.name)}</option>`).join('')
-      || '<option value="">(sin logos)</option>';
+      || `<option value="">${tr('(sin logos)')}</option>`;
 
     list.innerHTML = phases.map((p, i) => {
       const logo = logoById(p.logoId);
       return `
       <li class="phase${p.enabled === false ? ' disabled' : ''}" data-id="${p.id}" draggable="${editable}">
         <div class="phase-top">
-          <span class="handle" title="Arrastrar para reordenar">⠿</span>
+          <span class="handle" title="${tr('Arrastrar para reordenar')}">⠿</span>
           <span class="num">${i + 1}</span>
           ${thumbHTML(logo && logo.src)}
           <select data-field="logoId" title="Logo">${logoOptions(p.logoId)}</select>
           <div class="item-actions">
-            <button class="btn ghost" data-act="goto" title="Mostrar ahora"><svg><use href="#i-target"/></svg></button>
-            <button class="btn ghost" data-act="up" title="Subir"><svg><use href="#i-up"/></svg></button>
-            <button class="btn ghost" data-act="down" title="Bajar"><svg><use href="#i-down"/></svg></button>
-            <button class="btn ghost" data-act="dup" title="Duplicar"><svg><use href="#i-copy"/></svg></button>
-            <button class="btn ghost danger" data-act="del" title="Eliminar"><svg><use href="#i-trash"/></svg></button>
+            <button class="btn ghost" data-act="goto" title="${tr('Mostrar ahora')}"><svg><use href="#i-target"/></svg></button>
+            <button class="btn ghost" data-act="up" title="${tr('Subir')}"><svg><use href="#i-up"/></svg></button>
+            <button class="btn ghost" data-act="down" title="${tr('Bajar')}"><svg><use href="#i-down"/></svg></button>
+            <button class="btn ghost" data-act="dup" title="${tr('Duplicar')}"><svg><use href="#i-copy"/></svg></button>
+            <button class="btn ghost danger" data-act="del" title="${tr('Eliminar')}"><svg><use href="#i-trash"/></svg></button>
           </div>
         </div>
         <div class="phase-bottom">
-          <label class="field">Duración (${S.durationUnit})<input type="number" data-field="duration" min="0" step="${stepAttr}" value="${toUnit(p.duration)}"></label>
-          <label class="field">Transición<select data-field="transition">${transitionOptions(p.transition)}</select></label>
+          <label class="field">${tr('Duración ({u})', { u: S.durationUnit })}<input type="number" data-field="duration" min="0" step="${stepAttr}" value="${toUnit(p.duration)}"></label>
+          <label class="field">${tr('Transición')}<select data-field="transition">${transitionOptions(p.transition)}</select></label>
           <label class="field">Trans. (ms)<input type="number" data-field="transitionMs" min="0" step="50" value="${p.transitionMs}"></label>
-          <label class="field">Escala<input type="number" data-field="scale" min="0.05" step="0.05" value="${p.scale ?? 1}"></label>
-          <label class="check" title="Incluir en la secuencia"><input type="checkbox" data-field="enabled" ${p.enabled === false ? '' : 'checked'}> Activa</label>
+          <label class="field">${tr('Escala')}<input type="number" data-field="scale" min="0.05" step="0.05" value="${p.scale ?? 1}"></label>
+          <label class="check" title="${tr('Incluir en la secuencia')}"><input type="checkbox" data-field="enabled" ${p.enabled === false ? '' : 'checked'}> ${tr('Activa')}</label>
         </div>
       </li>`;
     }).join('');
@@ -987,7 +1262,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   function renderSummary() {
     const active = activePhases();
     const total = active.reduce((a, p) => a + (Number(p.duration) || 0), 0);
-    $('seqSummary').textContent = `${active.length} activas · ciclo de ${fmtSecs(total)}`;
+    $('seqSummary').textContent = tr('{n} activas · ciclo de {t}', { n: active.length, t: fmtSecs(total) });
   }
 
   const newPhase = (logoId) => ({
@@ -1048,6 +1323,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const q = new URLSearchParams({ host: c.host, port: c.port, channel: c.channel || 'default' });
     if (includePass && c.password) q.set('password', c.password);
     if (scene) q.set('scene', scene);
+    q.set('lang', window.LANG);
     if (S.url.debug) q.set('debug', '1');
     return `${base}?${q}`;
   }
@@ -1084,7 +1360,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       }
       obsScenes = scenes;
     } catch (err) {
-      log(`No se pudieron leer las escenas: ${err.message}`, 'error');
+      log(tr('No se pudieron leer las escenas: {m}', { m: err.message }), 'error');
     }
     renderScenes();
     renderStageTarget();
@@ -1095,23 +1371,23 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const sel = $('addScene');
     if (!obsScenes) {
       $('scenesCount').textContent = '';
-      sel.innerHTML = '<option value="">(conecta a OBS)</option>';
+      sel.innerHTML = `<option value="">${tr('(conecta a OBS)')}</option>`;
       $('btnAddToScene').disabled = true;
-      list.innerHTML = '<li class="empty">Conecta el panel a OBS para ver las escenas.</li>';
+      list.innerHTML = `<li class="empty">${tr('Conecta el panel a OBS para ver las escenas.')}</li>`;
       return;
     }
     const withOverlay = obsScenes.filter((sc) => sc.sources.length);
-    $('scenesCount').textContent = withOverlay.length ? `${withOverlay.length} de ${obsScenes.length}` : '';
+    $('scenesCount').textContent = withOverlay.length ? tr('{a} de {b}', { a: withOverlay.length, b: obsScenes.length }) : '';
 
     const prev = sel.value;
-    sel.innerHTML = obsScenes.map((sc) => `<option value="${esc(sc.name)}"${sc.sources.length ? ' disabled' : ''}>${esc(sc.name)}${sc.sources.length ? ' (ya tiene)' : ''}${sc.name === currentScene ? ' · actual' : ''}</option>`).join('')
-      || '<option value="">(sin escenas)</option>';
+    sel.innerHTML = obsScenes.map((sc) => `<option value="${esc(sc.name)}"${sc.sources.length ? ' disabled' : ''}>${esc(sc.name)}${sc.sources.length ? tr(' (ya tiene)') : ''}${sc.name === currentScene ? tr(' · actual') : ''}</option>`).join('')
+      || `<option value="">${tr('(sin escenas)')}</option>`;
     const free = obsScenes.filter((sc) => !sc.sources.length).map((sc) => sc.name);
     sel.value = free.includes(prev) ? prev : (free.includes(currentScene) ? currentScene : (free[0] || ''));
     $('btnAddToScene').disabled = !free.length;
 
     if (!withOverlay.length) {
-      list.innerHTML = '<li class="empty">Ninguna escena tiene el overlay. Elige una arriba y pulsa “Agregar overlay”.</li>';
+      list.innerHTML = `<li class="empty">${tr('Ninguna escena tiene el overlay. Elige una arriba y pulsa “Agregar overlay”.')}</li>`;
       return;
     }
     list.innerHTML = withOverlay.map((sc) => sc.sources.map((src) => {
@@ -1119,17 +1395,17 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       const own = !!(key && S.sceneStages[key]);
       const ownLogos = !!(key && S.scenePhases[key]);
       const mismatch = key && key !== sc.name;
-      const note = !key ? '<span class="warn"> · sin escena: pulsa “Vincular”</span>'
-        : mismatch ? `<span class="warn"> · usa la posición de «${esc(key)}»</span>` : '';
+      const note = !key ? `<span class="warn">${tr(' · sin escena: pulsa “Vincular”')}</span>`
+        : mismatch ? `<span class="warn">${tr(' · usa la posición de «{k}»', { k: esc(key) })}</span>` : '';
       return `
       <li class="scene-item${key && (S.stageScene === key || S.seqScene === key) ? ' editing' : ''}" data-scene="${esc(sc.name)}" data-source="${esc(src.name)}" data-item="${src.itemId}" data-key="${esc(key)}">
         <div style="min-width:0">
-          <div class="scene-name">${esc(sc.name)}${sc.name === currentScene ? ' <span class="scene-sub">· actual</span>' : ''}</div>
-          <div class="scene-sub"><span class="tag${own ? ' own' : ''}">${own ? 'posición propia' : 'posición por defecto'}</span><span class="tag${ownLogos ? ' own' : ''}">${ownLogos ? 'logos propios' : 'logos por defecto'}</span>${esc(src.name)}${note}</div>
+          <div class="scene-name">${esc(sc.name)}${sc.name === currentScene ? ` <span class="scene-sub">${tr('· actual')}</span>` : ''}</div>
+          <div class="scene-sub"><span class="tag${own ? ' own' : ''}">${own ? tr('posición propia') : tr('posición por defecto')}</span><span class="tag${ownLogos ? ' own' : ''}">${ownLogos ? tr('logos propios') : tr('logos por defecto')}</span>${esc(src.name)}${note}</div>
         </div>
         <div class="item-actions">
-          <button class="btn" data-act="cfg" title="Configurar logos, posición y tamaño de esta escena"${key ? '' : ' disabled'}>Configurar</button>
-          <button class="btn ghost danger" data-act="del" title="Quitar el overlay de esta escena"><svg><use href="#i-trash"/></svg></button>
+          <button class="btn" data-act="cfg" title="${tr('Configurar logos, posición y tamaño de esta escena')}"${key ? '' : ' disabled'}>${tr('Configurar')}</button>
+          <button class="btn ghost danger" data-act="del" title="${tr('Quitar el overlay de esta escena')}"><svg><use href="#i-trash"/></svg></button>
         </div>
       </li>`;
     }).join('')).join('');
@@ -1140,11 +1416,11 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const keys = [];
     const add = (k, label) => { if (k && !keys.some((x) => x.k === k)) keys.push({ k, label }); };
     (obsScenes || []).forEach((sc) => sc.sources.forEach((src) => add(src.key, src.key)));
-    Object.keys(S.sceneStages).forEach((k) => add(k, obsScenes ? `${k} (sin overlay)` : k));
+    Object.keys(S.sceneStages).forEach((k) => add(k, obsScenes ? tr('{k} (sin overlay)', { k }) : k));
     if (S.stageScene) add(S.stageScene, S.stageScene);
 
-    $('stageScene').innerHTML = '<option value="">Por defecto (escenas sin posición propia)</option>'
-      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.sceneStages[k] ? '' : ' · usa por defecto'}</option>`).join('');
+    $('stageScene').innerHTML = `<option value="">${tr('Por defecto (escenas sin posición propia)')}</option>`
+      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.sceneStages[k] ? '' : tr(' · usa por defecto')}</option>`).join('');
     $('stageScene').value = S.stageScene;
 
     const k = S.stageScene;
@@ -1152,16 +1428,16 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     $('stageOwnRow').hidden = !k;
     $('stageOwn').checked = own;
     $('btnShowScene').disabled = !k || !bus || !bus.obsConnected;
-    $('stageCount').textContent = k ? `«${k}»` : 'por defecto';
+    $('stageCount').textContent = k ? tr('«{k}»', { k }) : tr('por defecto');
     if (!k) {
-      const users = keys.filter(({ k: x }) => !S.sceneStages[x]).map(({ k: x }) => `«${x}»`);
+      const users = keys.filter(({ k: x }) => !S.sceneStages[x]).map(({ k: x }) => tr('«{k}»', { k: x }));
       $('stageHint').textContent = users.length
-        ? `Se aplica a: ${users.join(', ')} y a los overlays sin escena.`
-        : 'Se aplica a las escenas que no tienen posición propia.';
+        ? tr('Se aplica a: {list} y a los overlays sin escena.', { list: users.join(', ') })
+        : tr('Se aplica a las escenas que no tienen posición propia.');
     } else {
       $('stageHint').textContent = own
-        ? `Los cambios solo afectan a la escena «${k}».`
-        : `«${k}» usa la configuración por defecto (abajo). Si cambias un valor, la escena pasa a tener su posición propia.`;
+        ? tr('Los cambios solo afectan a la escena «{k}».', { k })
+        : tr('«{k}» usa la configuración por defecto (abajo). Si cambias un valor, la escena pasa a tener su posición propia.', { k });
     }
     renderSeqTarget();
   }
@@ -1171,11 +1447,11 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     const keys = [];
     const add = (k, label) => { if (k && !keys.some((x) => x.k === k)) keys.push({ k, label }); };
     (obsScenes || []).forEach((sc) => sc.sources.forEach((src) => add(src.key, src.key)));
-    Object.keys(S.scenePhases).forEach((k) => add(k, obsScenes ? `${k} (sin overlay)` : k));
+    Object.keys(S.scenePhases).forEach((k) => add(k, obsScenes ? tr('{k} (sin overlay)', { k }) : k));
     if (S.seqScene) add(S.seqScene, S.seqScene);
 
-    $('seqScene').innerHTML = '<option value="">Por defecto (escenas sin logos propios)</option>'
-      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.scenePhases[k] ? ' · logos propios' : ' · usa por defecto'}</option>`).join('');
+    $('seqScene').innerHTML = `<option value="">${tr('Por defecto (escenas sin logos propios)')}</option>`
+      + keys.map(({ k, label }) => `<option value="${esc(k)}">${esc(label)}${S.scenePhases[k] ? tr(' · logos propios') : tr(' · usa por defecto')}</option>`).join('');
     $('seqScene').value = S.seqScene;
 
     const k = S.seqScene;
@@ -1184,14 +1460,14 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     $('seqDefault').checked = locked;
     $('seqFields').disabled = locked;
     if (!k) {
-      const users = keys.filter(({ k: x }) => !S.scenePhases[x]).map(({ k: x }) => `«${x}»`);
+      const users = keys.filter(({ k: x }) => !S.scenePhases[x]).map(({ k: x }) => tr('«{k}»', { k: x }));
       $('seqHint').textContent = users.length
-        ? `La usan: ${users.join(', ')} y los overlays sin escena.`
-        : 'La usan las escenas que no tienen logos propios.';
+        ? tr('La usan: {list} y los overlays sin escena.', { list: users.join(', ') })
+        : tr('La usan las escenas que no tienen logos propios.');
     } else {
       $('seqHint').textContent = locked
-        ? `«${k}» muestra la secuencia por defecto (abajo, solo lectura). Desmarca la casilla para elegir sus propios logos.`
-        : `«${k}» tiene sus propios logos: los cambios de abajo solo afectan a esta escena.`;
+        ? tr('«{k}» muestra la secuencia por defecto (abajo, solo lectura). Desmarca la casilla para elegir sus propios logos.', { k })
+        : tr('«{k}» tiene sus propios logos: los cambios de abajo solo afectan a esta escena.', { k });
     }
   }
 
@@ -1228,10 +1504,10 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
    *     y desde ahí Chromium bloquea las imágenes file:///.
    * ---------------------------------------------------------------------- */
   async function addOverlayToScene(scene) {
-    if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
-    if (!scene) return toast('Elige una escena', 'warn');
+    if (!bus || !bus.obsConnected) return toast(tr('Primero conecta el panel a OBS'), 'warn');
+    if (!scene) return toast(tr('Elige una escena'), 'warn');
     const sc = obsScenes && obsScenes.find((x) => x.name === scene);
-    if (sc && sc.sources.length) return toast(`La escena "${scene}" ya tiene el overlay`, 'warn');
+    if (sc && sc.sources.length) return toast(tr('La escena "{s}" ya tiene el overlay', { s: scene }), 'warn');
     try {
       const video = await bus.obsCall('GetVideoSettings');
       const names = new Set((await bus.obsCall('GetInputList')).inputs.map((i) => i.inputName));
@@ -1244,26 +1520,26 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       });
       S.sourceName = name;
       $('sourceName').value = name;
-      log(`Fuente "${name}" creada en la escena "${scene}"`, 'ok');
-      toast(`Overlay agregado a "${scene}"`, 'ok');
+      log(tr('Fuente "{n}" creada en la escena "{s}"', { n: name, s: scene }), 'ok');
+      toast(tr('Overlay agregado a "{s}"', { s: scene }), 'ok');
       await scanScenes();
       selectScene(scene);                // listo para configurar sus logos y su posición
       $('cardStage').open = true;
     } catch (err) {
-      log(`No se pudo agregar el overlay: ${err.message}`, 'error');
-      toast(`No se pudo agregar: ${err.message}`, 'error');
+      log(tr('No se pudo agregar el overlay: {m}', { m: err.message }), 'error');
+      toast(tr('No se pudo agregar: {m}', { m: err.message }), 'error');
     }
   }
 
   async function removeOverlay(sceneName, sourceName, itemId) {
-    if (!confirm(`¿Quitar el overlay "${sourceName}" de la escena "${sceneName}"?`)) return;
+    if (!confirm(tr('¿Quitar el overlay "{src}" de la escena "{s}"?', { src: sourceName, s: sceneName }))) return;
     try {
       const uses = (obsScenes || []).filter((sc) => sc.sources.some((s) => s.name === sourceName)).length;
       if (uses <= 1) await bus.obsCall('RemoveInput', { inputName: sourceName });
       else await bus.obsCall('RemoveSceneItem', { sceneName, sceneItemId: itemId });
-      log(`Overlay quitado de "${sceneName}"`, 'ok');
+      log(tr('Overlay quitado de "{s}"', { s: sceneName }), 'ok');
       await scanScenes();
-    } catch (err) { toast(`No se pudo quitar: ${err.message}`, 'error'); }
+    } catch (err) { toast(tr('No se pudo quitar: {m}', { m: err.message }), 'error'); }
   }
 
   /* ------------------------------------------------------------------------
@@ -1273,7 +1549,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
    * renombradas). Si no hay ninguna, la crea en la escena actual.
    * ---------------------------------------------------------------------- */
   async function linkOverlay() {
-    if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
+    if (!bus || !bus.obsConnected) return toast(tr('Primero conecta el panel a OBS'), 'warn');
     try {
       await scanScenes();
       if (!obsScenes) return;
@@ -1308,14 +1584,14 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       }
       S.sourceName = linked[0];
       $('sourceName').value = S.sourceName;
-      log(`Overlay vinculado: ${linked.join(', ')}`, 'ok');
-      toast(`Overlay vinculado (${linked.length} fuente${linked.length > 1 ? 's' : ''})`, 'ok');
+      log(tr('Overlay vinculado: {list}', { list: linked.join(', ') }), 'ok');
+      toast(tr(linked.length > 1 ? 'Overlay vinculado ({n} fuentes)' : 'Overlay vinculado ({n} fuente)', { n: linked.length }), 'ok');
       changed();
       await scanScenes();
       renderStage();
     } catch (err) {
-      log(`No se pudo vincular el overlay: ${err.message}`, 'error');
-      toast(`No se pudo vincular: ${err.message}`, 'error');
+      log(tr('No se pudo vincular el overlay: {m}', { m: err.message }), 'error');
+      toast(tr('No se pudo vincular: {m}', { m: err.message }), 'error');
     }
   }
 
@@ -1339,7 +1615,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       save(); updateOverlayUrl();
       connect();
     });
-    $('btnDisconnect').addEventListener('click', () => { bus && bus.disconnectObs(); log('Desconectado manualmente'); });
+    $('btnDisconnect').addEventListener('click', () => { bus && bus.disconnectObs(); log(tr('Desconectado manualmente')); });
     $('cShowPass').addEventListener('change', (e) => { $('cPass').type = e.target.checked ? 'text' : 'password'; });
     $('cAuto').addEventListener('change', (e) => { S.connection.autoConnect = e.target.checked; save(); });
 
@@ -1376,10 +1652,10 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     lib.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act]'); if (!btn) return;
       const id = btn.closest('.logo-item').dataset.id;
-      if (btn.dataset.act === 'to-seq') { seq().push(newPhase(id)); toast(`Añadido a ${seqLabel()}`); }
+      if (btn.dataset.act === 'to-seq') { seq().push(newPhase(id)); toast(tr('Añadido a {label}', { label: seqLabel() })); }
       if (btn.dataset.act === 'del') {
         const used = allSeqs().reduce((n, l) => n + l.filter((p) => p.logoId === id).length, 0);
-        if (used && !confirm(`Este logo se usa en ${used} fase(s) (todas las escenas). ¿Eliminarlo junto con esas fases?`)) return;
+        if (used && !confirm(tr('Este logo se usa en {n} fase(s) (todas las escenas). ¿Eliminarlo junto con esas fases?', { n: used }))) return;
         S.logos = S.logos.filter((l) => l.id !== id);
         S.phases = S.phases.filter((p) => p.logoId !== id);
         for (const k of Object.keys(S.scenePhases)) S.scenePhases[k] = S.scenePhases[k].filter((p) => p.logoId !== id);
@@ -1396,16 +1672,16 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     $('defTransMs').addEventListener('change', (e) => { S.defaults.transitionMs = Math.max(0, Number(e.target.value) || 0); save(); });
     $('endBehavior').addEventListener('change', (e) => { S.endBehavior = e.target.value; changed(); });
     $('btnAddAll').addEventListener('click', () => {
-      if (!S.logos.length) return toast('La biblioteca está vacía', 'warn');
+      if (!S.logos.length) return toast(tr('La biblioteca está vacía'), 'warn');
       S.logos.forEach((l) => seq().push(newPhase(l.id)));
       renderPhases(); changed();
     });
     $('btnApplyDefaults').addEventListener('click', () => {
       seq().forEach((p) => Object.assign(p, { duration: S.defaults.duration, transition: S.defaults.transition, transitionMs: S.defaults.transitionMs }));
-      renderPhases(); changed(); toast('Valores aplicados a todas las fases');
+      renderPhases(); changed(); toast(tr('Valores aplicados a todas las fases'));
     });
     $('btnClearSeq').addEventListener('click', () => {
-      if (seq().length && confirm(`¿Eliminar todas las fases de ${seqLabel()}?`)) { seq().length = 0; renderPhases(); changed(); }
+      if (seq().length && confirm(tr('¿Eliminar todas las fases de {label}?', { label: seqLabel() }))) { seq().length = 0; renderPhases(); changed(); }
     });
 
     // --- Secuencia por escena ---
@@ -1415,8 +1691,8 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       if (!e.target.checked) {
         // Empieza con una copia de la secuencia por defecto (ids nuevos)
         S.scenePhases[k] = S.phases.map((p) => ({ ...clone(p), id: uid() }));
-        toast(`«${k}» ahora tiene sus propios logos`, 'ok');
-      } else if (confirm(`¿Descartar los logos propios de «${k}»? Volverá a mostrar la secuencia por defecto.`)) {
+        toast(tr('«{k}» ahora tiene sus propios logos', { k }), 'ok');
+      } else if (confirm(tr('¿Descartar los logos propios de «{k}»? Volverá a mostrar la secuencia por defecto.', { k }))) {
         delete S.scenePhases[k];
       } else e.target.checked = false;
       renderSeqTarget(); renderPhases(); renderScenes(); changed();
@@ -1443,7 +1719,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       const act = btn.dataset.act;
       if (act === 'goto') {
         const idx = activePhases().indexOf(p);
-        if (idx < 0) return toast('La fase está desactivada o sin imagen', 'warn');
+        if (idx < 0) return toast(tr('La fase está desactivada o sin imagen'), 'warn');
         sendConfig(false, true);
         return command('goto', { index: idx, phaseId: p.id });
       }
@@ -1518,7 +1794,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
     $('stageOwn').addEventListener('change', (e) => {
       const k = S.stageScene; if (!k) return;
       if (e.target.checked) S.sceneStages[k] = clone(S.stage);
-      else if (confirm(`¿Quitar la posición propia de «${k}»? Volverá a usar la configuración por defecto.`)) delete S.sceneStages[k];
+      else if (confirm(tr('¿Quitar la posición propia de «{k}»? Volverá a usar la configuración por defecto.', { k }))) delete S.sceneStages[k];
       else e.target.checked = true;
       renderStageTarget(); renderStage(); renderScenes(); changed();
     });
@@ -1528,16 +1804,16 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
         const { studioModeEnabled } = await bus.obsCall('GetStudioModeEnabled');
         if (studioModeEnabled) await bus.obsCall('SetCurrentPreviewScene', { sceneName: k });
         else {
-          if (!confirm(`Esto cambia la escena en vivo (programa) a «${k}». ¿Continuar?`)) return;
+          if (!confirm(tr('Esto cambia la escena en vivo (programa) a «{k}». ¿Continuar?', { k }))) return;
           await bus.obsCall('SetCurrentProgramScene', { sceneName: k });
         }
         currentScene = k; renderScenes();
-      } catch (err) { toast(`No se pudo cambiar de escena: ${err.message}`, 'error'); }
+      } catch (err) { toast(tr('No se pudo cambiar de escena: {m}', { m: err.message }), 'error'); }
     });
 
     // --- Overlay en escenas ---
     $('btnRefreshScenes').addEventListener('click', () => {
-      if (!bus || !bus.obsConnected) return toast('Primero conecta el panel a OBS', 'warn');
+      if (!bus || !bus.obsConnected) return toast(tr('Primero conecta el panel a OBS'), 'warn');
       scanScenes();
     });
     $('btnAddToScene').addEventListener('click', () => addOverlayToScene($('addScene').value));
@@ -1560,17 +1836,17 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       const input = $('overlayUrl');
       try { await navigator.clipboard.writeText(input.value); }
       catch (_) { input.select(); document.execCommand('copy'); }
-      toast('URL copiada', 'ok');
+      toast(tr('URL copiada'), 'ok');
     });
     $('btnLinkOverlay').addEventListener('click', linkOverlay);
     $('sourceName').addEventListener('change', (e) => { S.sourceName = e.target.value.trim(); save(); });
     $('btnRefreshSource').addEventListener('click', async () => {
       // Equivale al botón "Actualizar la caché de la página actual" de la fuente de navegador
-      if (!S.sourceName) return toast('Escribe el nombre exacto de la fuente de navegador', 'warn');
+      if (!S.sourceName) return toast(tr('Escribe el nombre exacto de la fuente de navegador'), 'warn');
       try {
         await bus.obsCall('PressInputPropertiesButton', { inputName: S.sourceName, propertyName: 'refreshnocache' });
-        toast('Fuente refrescada', 'ok');
-      } catch (err) { toast(`No se pudo refrescar: ${err.message}`, 'error'); }
+        toast(tr('Fuente refrescada'), 'ok');
+      } catch (err) { toast(tr('No se pudo refrescar: {m}', { m: err.message }), 'error'); }
     });
     $('btnExport').addEventListener('click', () => {
       const data = { ...clone(S), connection: { ...S.connection, password: '' } };   // no exporta la contraseña
@@ -1587,15 +1863,15 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
       if (!f) return;
       try {
         const data = JSON.parse(await f.text());
-        if (!Array.isArray(data.logos) || !Array.isArray(data.phases)) throw new Error('formato no válido');
+        if (!Array.isArray(data.logos) || !Array.isArray(data.phases)) throw new Error(tr('formato no válido'));
         const keepPass = S.connection.password;
         S = deepMerge(clone(DEFAULT_STATE), data);
         if (!S.connection.password) S.connection.password = keepPass;
-        renderAll(); changed(); toast('Configuración importada', 'ok');
-      } catch (err) { toast(`Error al importar: ${err.message}`, 'error'); }
+        renderAll(); changed(); toast(tr('Configuración importada'), 'ok');
+      } catch (err) { toast(tr('Error al importar: {m}', { m: err.message }), 'error'); }
     });
     $('btnReset').addEventListener('click', () => {
-      if (!confirm('¿Borrar logos, fases y ajustes? (la conexión se mantiene)')) return;
+      if (!confirm(tr('¿Borrar logos, fases y ajustes? (la conexión se mantiene)'))) return;
       const conn = S.connection;
       S = clone(DEFAULT_STATE); S.connection = conn;
       renderAll(); changed();
@@ -1609,6 +1885,7 @@ fieldset.stage-fields { border: 0; margin: 0; padding: 0; display: grid; gap: va
   function renderAll() { renderForms(); renderStageTarget(); renderStage(); renderLogos(); renderPhases(); renderScenes(); }
 
   /* ======================= Arranque ======================= */
+  translateDom();
   renderAll();
   bindEvents();
   createBus();

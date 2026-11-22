@@ -1,6 +1,6 @@
 /*
-Plugin Name
-Copyright (C) <Year> <Developer> <Email Address>
+Logo Sequencer
+Copyright (C) 2026 KaguroDev
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

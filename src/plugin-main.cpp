@@ -1,6 +1,6 @@
 /*
 Logo Sequencer — plugin nativo para OBS Studio
-Copyright (C) 2026
+Copyright (C) 2026 KaguroDev
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -60,9 +60,71 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "browser-panel.hpp"
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
+
+/* ---------------------------------------------------------------------------
+ * Idioma del plugin ("en" o "es")
+ *   1. data/language.txt — lo escribe el instalador con el idioma elegido.
+ *   2. Si no existe (p. ej. compilación de desarrollo): el idioma de OBS.
+ * Los textos nativos salen de data/locale/en-US.ini y es-ES.ini; las páginas
+ * del dock y del overlay reciben el idioma en la URL (?lang=en|es).
+ * Equivale a OBS_MODULE_USE_DEFAULT_LOCALE, pero con el idioma elegido.
+ * ------------------------------------------------------------------------ */
+static lookup_t *obs_module_lookup = nullptr;
+static std::string plugin_lang = "en";
+
+static std::string detect_plugin_lang(const char *obs_locale)
+{
+	BPtr<char> path = obs_module_file("language.txt");
+	if (path) {
+		BPtr<char> text = os_quick_read_utf8_file(path);
+		if (text) {
+			std::string value(text.Get());
+			size_t start = value.find_first_not_of(" \t\r\n\xEF\xBB\xBF");
+			if (start != std::string::npos) {
+				if (value.compare(start, 2, "es") == 0)
+					return "es";
+				if (value.compare(start, 2, "en") == 0)
+					return "en";
+			}
+		}
+	}
+	return (obs_locale && strncmp(obs_locale, "es", 2) == 0) ? "es" : "en";
+}
+
+const char *obs_module_text(const char *val)
+{
+	const char *out = val;
+	text_lookup_getstr(obs_module_lookup, val, &out);
+	return out;
+}
+
+bool obs_module_get_string(const char *val, const char **out)
+{
+	return text_lookup_getstr(obs_module_lookup, val, out);
+}
+
+void obs_module_set_locale(const char *locale)
+{
+	plugin_lang = detect_plugin_lang(locale);
+	if (obs_module_lookup)
+		text_lookup_destroy(obs_module_lookup);
+	obs_module_lookup = obs_module_load_locale(obs_current_module(), "en-US",
+						   plugin_lang == "es" ? "es-ES" : "en-US");
+}
+
+void obs_module_free_locale(void)
+{
+	text_lookup_destroy(obs_module_lookup);
+	obs_module_lookup = nullptr;
+}
 
 namespace {
+
+/* Texto traducido como QString */
+QString tr_text(const char *key)
+{
+	return QString::fromUtf8(obs_module_text(key));
+}
 
 const char *DOCK_ID = "logo-sequencer-dock";
 const char *OVERLAY_FILE = "Overlay_logo.html";
@@ -80,12 +142,13 @@ struct HotkeyDef {
 };
 
 HotkeyDef hotkeys[] = {
-	{"logoseq_play", "Logo Sequencer: Iniciar secuencia", "play", OBS_INVALID_HOTKEY_ID},
-	{"logoseq_pause", "Logo Sequencer: Pausar", "pause", OBS_INVALID_HOTKEY_ID},
-	{"logoseq_toggle", "Logo Sequencer: Iniciar / Pausar", "toggle", OBS_INVALID_HOTKEY_ID},
-	{"logoseq_next", "Logo Sequencer: Siguiente logo", "next", OBS_INVALID_HOTKEY_ID},
-	{"logoseq_prev", "Logo Sequencer: Logo anterior", "prev", OBS_INVALID_HOTKEY_ID},
-	{"logoseq_stop", "Logo Sequencer: Detener", "stop", OBS_INVALID_HOTKEY_ID},
+	/* label = clave en data/locale/*.ini */
+	{"logoseq_play", "Hotkey.Play", "play", OBS_INVALID_HOTKEY_ID},
+	{"logoseq_pause", "Hotkey.Pause", "pause", OBS_INVALID_HOTKEY_ID},
+	{"logoseq_toggle", "Hotkey.Toggle", "toggle", OBS_INVALID_HOTKEY_ID},
+	{"logoseq_next", "Hotkey.Next", "next", OBS_INVALID_HOTKEY_ID},
+	{"logoseq_prev", "Hotkey.Prev", "prev", OBS_INVALID_HOTKEY_ID},
+	{"logoseq_stop", "Hotkey.Stop", "stop", OBS_INVALID_HOTKEY_ID},
 };
 
 QCef *cef = nullptr;
@@ -147,6 +210,7 @@ std::string build_page_url(const char *file, const QString &scene = QString())
 	query.addQueryItem("host", "127.0.0.1");
 	query.addQueryItem("port", QString::number(ws.port));
 	query.addQueryItem("channel", CHANNEL);
+	query.addQueryItem("lang", QString::fromStdString(plugin_lang));
 	if (!ws.password.empty())
 		query.addQueryItem("password", encode_query_value(QString::fromStdString(ws.password)));
 	if (!scene.isEmpty())
@@ -250,7 +314,7 @@ void send_command(const char *command)
 QString install_overlay(bool create_if_missing)
 {
 	if (build_page_url(OVERLAY_FILE).empty())
-		return QString("No se encontró %1 en la carpeta data del plugin.").arg(OVERLAY_FILE);
+		return tr_text("Overlay.FileMissing").arg(OVERLAY_FILE);
 
 	QStringList messages;
 	auto sources = find_overlay_sources();
@@ -265,7 +329,7 @@ QString install_overlay(bool create_if_missing)
 			names << QString::fromUtf8(obs_source_get_name(source));
 			obs_source_release(source);
 		}
-		messages << QString("Overlay actualizado: %1").arg(names.join(", "));
+		messages << tr_text("Overlay.Updated").arg(names.join(", "));
 	}
 	if (!create_if_missing)
 		return messages.join("\n");
@@ -275,12 +339,12 @@ QString install_overlay(bool create_if_missing)
 						    : obs_frontend_get_current_scene();
 	obs_scene_t *scene = obs_scene_from_source(scene_source);
 	if (!scene) {
-		messages << "No hay una escena activa donde añadir el overlay.";
+		messages << tr_text("Overlay.NoScene");
 		return messages.join("\n");
 	}
 	QString scene_name = QString::fromUtf8(obs_source_get_name(scene_source));
 	if (scene_has_overlay(scene)) {
-		messages << QString("La escena \"%1\" ya tiene el overlay.").arg(scene_name);
+		messages << tr_text("Overlay.AlreadyInScene").arg(scene_name);
 		return messages.join("\n");
 	}
 
@@ -306,11 +370,11 @@ QString install_overlay(bool create_if_missing)
 
 	OBSSourceAutoRelease source = obs_source_create("browser_source", name.toUtf8().constData(), settings, nullptr);
 	if (!source) {
-		messages << "No se pudo crear la fuente de navegador (¿está instalado obs-browser?).";
+		messages << tr_text("Overlay.CreateFailed");
 		return messages.join("\n");
 	}
 	obs_scene_add(scene, source);
-	messages << QString("Fuente \"%1\" creada en la escena \"%2\".").arg(name, scene_name);
+	messages << tr_text("Overlay.Created").arg(name, scene_name);
 	return messages.join("\n");
 }
 
@@ -334,9 +398,7 @@ void add_dock()
 	}
 	if (!widget) {
 		/* obs-browser no está disponible (o Wayland): se muestra un aviso en el dock */
-		auto *label = new QLabel("Logo Sequencer necesita el plugin obs-browser\n"
-					 "(incluido en OBS para Windows) para mostrar el panel.",
-					 main_window);
+		auto *label = new QLabel(tr_text("Dock.NoBrowser"), main_window);
 		label->setAlignment(Qt::AlignCenter);
 		label->setWordWrap(true);
 		widget = label;
@@ -391,7 +453,7 @@ bool obs_module_load(void)
 {
 	for (HotkeyDef &hk : hotkeys) {
 		hk.hotkey = obs_hotkey_register_frontend(
-			hk.id, hk.label,
+			hk.id, obs_module_text(hk.label),
 			[](void *data, obs_hotkey_id, obs_hotkey_t *, bool pressed) {
 				if (pressed)
 					send_command(static_cast<const char *>(data));
@@ -403,14 +465,14 @@ bool obs_module_load(void)
 	obs_frontend_add_save_callback(on_frontend_save, nullptr);
 
 	auto *action = static_cast<QAction *>(
-		obs_frontend_add_tools_menu_qaction("Logo Sequencer: crear / actualizar overlay"));
+		obs_frontend_add_tools_menu_qaction(obs_module_text("Menu.CreateOverlay")));
 	QObject::connect(action, &QAction::triggered, []() {
 		QString message = install_overlay(true);
 		QMessageBox::information(static_cast<QWidget *>(obs_frontend_get_main_window()), "Logo Sequencer",
 					 message);
 	});
 
-	obs_log(LOG_INFO, "plugin cargado (versión %s)", PLUGIN_VERSION);
+	obs_log(LOG_INFO, "plugin cargado (versión %s, idioma %s)", PLUGIN_VERSION, plugin_lang.c_str());
 	return true;
 }
 
@@ -430,5 +492,5 @@ const char *obs_module_name(void)
 
 const char *obs_module_description(void)
 {
-	return "Secuenciador de logos: dock de control, overlay de navegador y atajos de teclado.";
+	return obs_module_text("Description");
 }

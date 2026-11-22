@@ -1,59 +1,141 @@
-# OBS Plugin Template
+# Logo Sequencer for OBS Studio
 
-## Introduction
+**English** · [Español](LEEME.md)
 
-The plugin template is meant to be used as a starting point for OBS Studio plugin development. It includes:
+Show your sponsor, partner or brand logos in OBS as an automatic sequence, with smooth transitions, controlled from a dock inside OBS.
 
-* Boilerplate plugin source code
-* A CMake project file
-* GitHub Actions workflows and repository actions
+[![Download](https://img.shields.io/github/v/release/KaguroDev/logo-sequencer-plugin?label=download&style=for-the-badge)](https://github.com/KaguroDev/logo-sequencer-plugin/releases/latest)
+![OBS 31+](https://img.shields.io/badge/OBS-31%2B-302E31?style=for-the-badge&logo=obsstudio)
+![Windows 64-bit](https://img.shields.io/badge/Windows-64--bit-0078D4?style=for-the-badge)
+![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue?style=for-the-badge)
 
-## Supported Build Environments
+---
 
-| Platform  | Tool   |
-|-----------|--------|
-| Windows   | Visual Studio 17 2022 |
-| macOS     | XCode 16.0 |
-| Windows, macOS  | CMake 3.30.5 |
-| Ubuntu 24.04 | CMake 3.28.3 |
-| Ubuntu 24.04 | `ninja-build` |
-| Ubuntu 24.04 | `pkg-config`
-| Ubuntu 24.04 | `build-essential` |
+## Features
 
-## Quick Start
+- **Control dock** inside OBS: logo library, phase sequence, size and position. Everything is saved between sessions.
+- **Transitions**: fade, slide (←, →, ↑), zoom, blur or cut, with configurable duration per logo.
+- **Per-scene setup**: each scene can show its own logos in its own position and size (for example, top-right in one scene and bottom-left in another).
+- **Hotkeys** in *Settings → Hotkeys*: Start, Pause, Start/Pause, Next, Previous, Stop.
+- **Zero configuration**: the plugin reads the OBS WebSocket port and password by itself and creates the overlay source for you.
+- **English and Spanish**: you choose the language in the installer.
 
-An absolute bare-bones [Quick Start Guide](https://github.com/obsproject/obs-plugintemplate/wiki/Quick-Start-Guide) is available in the wiki.
+## Requirements
 
-## Documentation
+- Windows 10/11, 64-bit
+- OBS Studio **31 or later**
+- OBS WebSocket server enabled: *Tools → WebSocket Server Settings → Enable WebSocket server*
+- Internet connection: the dock and the overlay load the `obs-websocket-js` library from a CDN
 
-All documentation can be found in the [Plugin Template Wiki](https://github.com/obsproject/obs-plugintemplate/wiki).
+## Installation
 
-Suggested reading to get up and running:
+1. Download `logo-sequencer-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/KaguroDev/logo-sequencer-plugin/releases/latest).
+2. **Close OBS** and run the installer. It asks for administrator permissions.
+3. Choose **English** or **Español**. This sets the language of the installer and of the plugin.
 
-* [Getting started](https://github.com/obsproject/obs-plugintemplate/wiki/Getting-Started)
-* [Build system requirements](https://github.com/obsproject/obs-plugintemplate/wiki/Build-System-Requirements)
-* [Build system options](https://github.com/obsproject/obs-plugintemplate/wiki/CMake-Build-System-Options)
+> **Windows SmartScreen** may warn you because the installer is not code-signed:
+> click *More info → Run anyway*.
 
-## GitHub Actions & CI
+The plugin is installed for all users in `C:\ProgramData\obs-studio\plugins\logo-sequencer\`.
 
-Default GitHub Actions workflows are available for the following repository actions:
+## Getting started
 
-* `push`: Run for commits or tags pushed to `master` or `main` branches.
-* `pr-pull`: Run when a Pull Request has been pushed or synchronized.
-* `dispatch`: Run when triggered by the workflow dispatch in GitHub's user interface.
-* `build-project`: Builds the actual project and is triggered by other workflows.
-* `check-format`: Checks CMake and plugin source code formatting and is triggered by other workflows.
+1. Open OBS and enable the WebSocket server (see *Requirements*).
+2. **Docks** menu → check **Logo Sequencer**.
+3. In the dock, **Overlay in scenes** section: choose a scene and press **Add overlay**.
+   Repeat for every scene where you want the logos.
+4. In **Logo library**, add your logos by URL, local path (`C:\logos\sponsor.png`) or by dragging images onto the list.
+5. Press **Add all logos** in **Phase sequence**, adjust the durations and press **▶ Start**.
 
-The workflows make use of GitHub repository actions (contained in `.github/actions`) and build scripts (contained in `.github/scripts`) which are not needed for local development, but might need to be adjusted if additional/different steps are required to build the plugin.
+You can also use **Tools → Logo Sequencer: create / update overlay** to create the overlay in the current scene.
 
-### Retrieving build artifacts
+### Different logos per scene
 
-Successful builds on GitHub Actions will produce build artifacts that can be downloaded for testing. These artifacts are commonly simple archives and will not contain package installers or installation programs.
+In **Phase sequence**, the **Logos for** selector chooses which sequence you are editing:
 
-### Building a Release
+- **Default**: used by every scene that has *Use the same logos as the default* checked (the initial setting).
+- **A scene**: uncheck *Use the same logos as the default* and that scene gets its own sequence, starting as a copy of the default one. Check the box again to go back to the default sequence.
 
-To create a release, an appropriately named tag needs to be pushed to the `main`/`master` branch using semantic versioning (e.g., `12.3.4`, `23.4.5-beta2`). A draft release will be created on the associated repository with generated installer packages or installation programs attached as release artifacts.
+### Different position per scene
 
-## Signing and Notarizing on macOS
+In **Size and scale**, the **Configure for** selector works the same way: when you change any value for a scene, that scene gets its **own position**. **Show in OBS** switches to that scene so you can see the result.
 
-Basic concepts of codesigning and notarization on macOS are explained in the correspodning [Wiki article](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS) which has a specific section for the [GitHub Actions setup](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS#setting-up-code-signing-for-github-actions).
+The **Configure** button next to each scene in *Overlay in scenes* selects that scene in both sections at once.
+
+### Controls and hotkeys
+
+Start, Pause, Next, Previous and Stop act on every scene at the same time.
+
+| Action | Dock button | Dock key | OBS hotkey |
+|---|---|---|---|
+| Start / Pause | ▶ / ⏸ | `Space` | *Logo Sequencer: Start / Pause* |
+| Next logo | ⏭ | `→` | *Logo Sequencer: Next logo* |
+| Previous logo | ⏮ | `←` | *Logo Sequencer: Previous logo* |
+| Stop | ⏹ | `Esc` | *Logo Sequencer: Stop* |
+
+OBS hotkeys are assigned in *Settings → Hotkeys* (search for "Logo Sequencer") and work even when the dock is hidden.
+
+## Changing the language
+
+Run the installer again and choose the other language. Your logos and settings are kept.
+
+## Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| The dock says *Disconnected* or *Wrong password* | Enable the WebSocket server and restart OBS. If you change the WebSocket password, restart OBS so the plugin reads it again. |
+| The overlay does not respond | Press **Link overlay in OBS** in the dock. |
+| You renamed a scene | Press **Link overlay in OBS**: the source is linked to the new name and keeps its logos and position. |
+| A local image is not shown | Use a path like `C:\logos\a.png`; the source must be in URL mode (**Link overlay in OBS** sets it up). |
+| The dock shows a warning about obs-browser | The OBS browser plugin is missing. It is included in the normal OBS installation for Windows. |
+| Anything else | *Help → Log Files → View Current Log* and search for `logo-sequencer`. |
+
+## Uninstall
+
+*Settings → Apps → Installed apps → Logo Sequencer (OBS plugin) → Uninstall*.
+Then delete any *Overlay Logos* sources you added to your scenes (right-click → Remove).
+
+---
+
+## Building from source
+
+Requirements:
+
+- **Visual Studio 2026** (or 2022) with the **Desktop development with C++** workload and Windows SDK 10.0.22621 or later
+- **CMake 3.28+** and **Git** in the `PATH`
+- **NSIS 3** to build the installer (`winget install NSIS.NSIS`). Install it **before** the first `cmake --preset`.
+
+```powershell
+cmake --preset windows-x64-vs2026          # Visual Studio 2022: windows-x64
+cmake --build --preset windows-x64-vs2026 --target installer
+```
+
+Or in a single step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
+```
+
+The first configuration downloads the OBS sources and dependencies (including Qt6). It takes several minutes and only happens once. The installer is written to `release\`.
+
+From Visual Studio: open `build_x64\logo-sequencer.slnx`, choose **RelWithDebInfo** and build the **installer** project (in the *Packaging* folder).
+
+The version is set in `buildspec.json`. Run `cmake --preset` again after changing it.
+
+### Project structure
+
+| File | Contents |
+|---|---|
+| `src/plugin-main.cpp` | Plugin code: dock, Tools menu, hotkeys, language |
+| `data/Control_logo.html` | Control dock (HTML/JS) |
+| `data/Overlay_logo.html` | Overlay shown in the browser source |
+| `data/locale/*.ini` | Plugin texts (`en-US`, `es-ES`) |
+| `installer/logo-sequencer.nsi` | NSIS installer script (English/Spanish) |
+| `installer/build-installer.ps1` | Builds the plugin and the installer in one step |
+| `buildspec.json` | Name, version and OBS version to build against |
+
+Based on the official [obs-plugintemplate](https://github.com/obsproject/obs-plugintemplate).
+
+## License
+
+[GPL-2.0](LICENSE) © 2026 [KaguroDev](https://github.com/KaguroDev)

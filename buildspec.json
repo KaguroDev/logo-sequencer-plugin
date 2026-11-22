@@ -38,8 +38,8 @@
     },
     "name": "logo-sequencer",
     "displayName": "Logo Sequencer",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "author": "KaguroDev",
-    "website": "https://example.com",
+    "website": "https://github.com/KaguroDev/logo-sequencer-plugin",
     "email": "noreply@example.com"
 }
