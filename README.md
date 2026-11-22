@@ -9,6 +9,17 @@ Show your sponsor, partner or brand logos in OBS as an automatic sequence, with 
 ![Windows 64-bit](https://img.shields.io/badge/Windows-64--bit-0078D4?style=for-the-badge)
 ![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue?style=for-the-badge)
 
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/dock-overview-en.png" width="300" alt="Logo Sequencer dock: playback controls, overlay in scenes and logo library"></td>
+    <td align="center"><img src="docs/images/dock-sequence-en.png" width="300" alt="Logo Sequencer dock: phase sequence and size and scale settings"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Playback, scenes and logo library</sub></td>
+    <td align="center"><sub>Phase sequence, size and position</sub></td>
+  </tr>
+</table>
+
 ---
 
 ## Features
@@ -133,6 +144,7 @@ The version is set in `buildspec.json`. Run `cmake --preset` again after changin
 | `installer/logo-sequencer.nsi` | NSIS installer script (English/Spanish) |
 | `installer/build-installer.ps1` | Builds the plugin and the installer in one step |
 | `buildspec.json` | Name, version and OBS version to build against |
+| `docs/images/` | Screenshots used in this README |
 
 Based on the official [obs-plugintemplate](https://github.com/obsproject/obs-plugintemplate).
 

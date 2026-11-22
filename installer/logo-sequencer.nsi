@@ -2,7 +2,7 @@
 ;  Logo Sequencer — instalador .exe del plugin para OBS
 ;  (NSIS 3). Lo genera el destino "installer" de CMake /
 ;  Visual Studio, que le pasa:
-;    /DVERSION=1.2.0
+;    /DVERSION=1.2.1
 ;    /DPLUGIN_NAME=logo-sequencer
 ;    /DRUNDIR=<build_x64\rundir\RelWithDebInfo>
 ;    /DOUTDIR=<carpeta release>
@@ -21,7 +21,7 @@ Unicode true
 !include "x64.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.2.0"
+  !define VERSION "1.2.1"
 !endif
 !ifndef PLUGIN_NAME
   !define PLUGIN_NAME "logo-sequencer"

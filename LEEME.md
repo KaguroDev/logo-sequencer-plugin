@@ -9,6 +9,17 @@ Muestra los logos de tus patrocinadores, auspiciadores o marcas en OBS como una 
 ![Windows 64 bits](https://img.shields.io/badge/Windows-64%20bits-0078D4?style=for-the-badge)
 ![Licencia GPL-2.0](https://img.shields.io/badge/licencia-GPL--2.0-blue?style=for-the-badge)
 
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/dock-overview-es.png" width="300" alt="Dock de Logo Sequencer: controles de reproducción, overlay en escenas y biblioteca de logos"></td>
+    <td align="center"><img src="docs/images/dock-sequence-es.png" width="300" alt="Dock de Logo Sequencer: secuencia de fases y ajustes de tamaño y escala"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Reproducción, escenas y biblioteca de logos</sub></td>
+    <td align="center"><sub>Secuencia de fases, tamaño y posición</sub></td>
+  </tr>
+</table>
+
 ---
 
 ## Características
@@ -138,6 +149,7 @@ Sin instalador: cierra OBS y, en una consola **como administrador**, ejecuta `cm
 | `installer/logo-sequencer.nsi` | Script del instalador NSIS (español/inglés) |
 | `installer/build-installer.ps1` | Compila el plugin y el instalador en un paso |
 | `buildspec.json` | Nombre, versión y versión de OBS contra la que se compila |
+| `docs/images/` | Capturas usadas en este documento |
 
 ### Traducciones
 
